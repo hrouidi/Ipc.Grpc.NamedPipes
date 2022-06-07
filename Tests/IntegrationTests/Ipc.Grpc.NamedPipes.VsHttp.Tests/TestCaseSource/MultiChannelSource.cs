@@ -1,8 +1,8 @@
-using Ipc.Grpc.NamedPipes.Tests.Helpers;
 using System.Collections;
 using System.Collections.Generic;
+using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
 
-namespace Ipc.Grpc.NamedPipes.Tests.TestCaseSource
+namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.TestCaseSource
 {
     public class MultiChannelSource : IEnumerable<object[]>
     {

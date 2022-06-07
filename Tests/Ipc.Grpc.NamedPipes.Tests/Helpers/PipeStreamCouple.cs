@@ -1,11 +1,12 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.IO.Pipes;
 using System.Threading.Tasks;
 using PipeOptions = System.IO.Pipes.PipeOptions;
 
-namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
+namespace Ipc.Grpc.NamedPipes.Tests.Helpers;
 
-public class PipeStreamCouple
+public class PipeStreamCouple : IDisposable
 {
     public NamedPipeClientStream ClientStream { get; set; }
     public NamedPipeServerStream ServerStream { get; set; }

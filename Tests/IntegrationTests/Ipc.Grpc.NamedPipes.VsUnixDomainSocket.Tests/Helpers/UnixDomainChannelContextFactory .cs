@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Net.Client;
 using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
-using Ipc.Grpc.NamedPipes.Tests.Helpers;
 using Ipc.Grpc.NamedPipes.Tests.ProtoContract;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

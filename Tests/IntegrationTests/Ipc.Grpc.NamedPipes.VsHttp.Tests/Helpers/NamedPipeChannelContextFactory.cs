@@ -1,9 +1,8 @@
-﻿
-using System;
+﻿using System;
 using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
 using Ipc.Grpc.NamedPipes.Tests.ProtoContract;
 
-namespace Ipc.Grpc.NamedPipes.Tests.Helpers
+namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers
 {
     public class NamedPipeChannelContextFactory : ChannelContextFactory
     {

@@ -1,7 +1,7 @@
 ﻿
 using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
 
-namespace Ipc.Grpc.NamedPipes.Tests.Helpers
+namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers
 {
     public abstract class ChannelContextFactory
     {

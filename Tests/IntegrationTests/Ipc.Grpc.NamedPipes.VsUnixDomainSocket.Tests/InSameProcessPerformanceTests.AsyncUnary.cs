@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
-using Ipc.Grpc.NamedPipes.Tests.Helpers;
 using Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.TestCaseSource;
 using NUnit.Framework;
 
