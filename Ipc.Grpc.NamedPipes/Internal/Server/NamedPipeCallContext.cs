@@ -16,10 +16,10 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         protected override CancellationToken CancellationTokenCore => _serverConnectionContext.CancellationTokenSource.Token;
 
-        protected override Task WriteResponseHeadersAsyncCore(Metadata responseHeaders)
+        protected override async Task WriteResponseHeadersAsyncCore(Metadata responseHeaders)
         {
-            _serverConnectionContext.Transport.SendResponseHeaders(responseHeaders);
-            return Task.CompletedTask;
+            await _serverConnectionContext.Transport.SendResponseHeaders(responseHeaders, _serverConnectionContext.CancellationTokenSource.Token)
+                                           .ConfigureAwait(false);
         }
 
         protected override ContextPropagationToken CreatePropagationTokenCore(ContextPropagationOptions options) => throw new NotSupportedException();

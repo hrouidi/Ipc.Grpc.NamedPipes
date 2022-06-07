@@ -116,16 +116,12 @@ namespace Ipc.Grpc.NamedPipes.Tests.ProtoContract
         {
             RequestHeaders = context.RequestHeaders;
             await context.WriteResponseHeadersAsync(ResponseHeaders);
-            foreach (var entry in ResponseTrailers)
+            foreach (Metadata.Entry entry in ResponseTrailers)
             {
                 if (entry.IsBinary)
-                {
-                    context.ResponseTrailers.Add(entry.Key, entry.ValueBytes);                    
-                }
+                    context.ResponseTrailers.Add(entry.Key, entry.ValueBytes);
                 else
-                {
                     context.ResponseTrailers.Add(entry.Key, entry.Value);
-                }
             }
             return new ResponseMessage
             {

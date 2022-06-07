@@ -76,21 +76,17 @@ namespace Ipc.Grpc.NamedPipes.Internal
         public async Task<ServerResponse> ReadServerMessagesAsync(CancellationToken token)
         {
             MemoryStream packet = await ReadPacketFromPipe(token).ConfigureAwait(false);
-            while (packet.Position < packet.Length)
+            ServerMessage message = ServerMessage.Parser.ParseDelimitedFrom(packet);
+            switch (message.DataCase)
             {
-                ServerMessage message = ServerMessage.Parser.ParseDelimitedFrom(packet);
-                switch (message.DataCase)
-                {
-                    case ServerMessage.DataOneofCase.ResponseHeaders:
-                        packet.Dispose();
-                        return new ServerResponse(message.ResponseHeaders);
-                    case ServerMessage.DataOneofCase.StreamPayloadInfo:
-                        throw new InvalidProgramException("Not yet managed");//return new ServerResponse(packet);
-                    case ServerMessage.DataOneofCase.Response:
-                        return new ServerResponse(message.Response, packet);
-                }
+                case ServerMessage.DataOneofCase.ResponseHeaders:
+                    packet.Dispose();
+                    return new ServerResponse(message.ResponseHeaders);
+                case ServerMessage.DataOneofCase.StreamPayloadInfo:
+                    throw new InvalidProgramException("Not yet managed");//return new ServerResponse(packet);
+                case ServerMessage.DataOneofCase.Response:
+                    return new ServerResponse(message.Response, packet);
             }
-
             return ServerResponse.Empty;
         }
 
@@ -249,12 +245,13 @@ namespace Ipc.Grpc.NamedPipes.Internal
             ms.WriteTo(_pipeStream);
         }
 
-        public void SendResponseHeaders(Metadata responseHeaders)
+        //TODO : fix SendResponseHeaders
+        public ValueTask SendResponseHeaders(Metadata responseHeaders, CancellationToken token)
         {
             ServerMessage message = TransportMessageBuilder.BuildResponseHeadersMessage(responseHeaders);
             using MemoryStream ms = new();
             message.WriteDelimitedTo(ms);
-            ms.WriteTo(_pipeStream);
+            return SendOverPipeStream(ms, token);
         }
 
         public void SendStreamResponsePayload<TResponse>(Marshaller<TResponse> marshaller, TResponse response)

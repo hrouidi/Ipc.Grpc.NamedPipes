@@ -11,13 +11,9 @@ namespace Ipc.Grpc.NamedPipes
         private readonly string _pipeName;
         private readonly NamedPipeChannelOptions _options;
 
-        public NamedPipeChannel(string pipeName, NamedPipeChannelOptions options) : this(".", pipeName, options)
+        public NamedPipeChannel(string pipeName, NamedPipeChannelOptions options) 
         {
-        }
-
-        public NamedPipeChannel(string serverName, string pipeName, NamedPipeChannelOptions options)
-        {
-            _serverName = serverName;
+            _serverName = ".";
             _pipeName = pipeName;
             _options = options;
         }

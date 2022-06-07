@@ -188,7 +188,7 @@ namespace Ipc.Grpc.NamedPipes.Tests
         public async Task ServerStreaming(ChannelContextFactory factory)
         {
             using var ctx = factory.Create();
-            var call = ctx.Client.ServerStreaming(new RequestMessage {Value = 3});
+            AsyncServerStreamingCall<ResponseMessage> call = ctx.Client.ServerStreaming(new RequestMessage {Value = 3});
             Assert.True(await call.ResponseStream.MoveNext());
             Assert.That(call.ResponseStream.Current.Value, Is.EqualTo(3));
             Assert.True(await call.ResponseStream.MoveNext());
@@ -390,7 +390,7 @@ namespace Ipc.Grpc.NamedPipes.Tests
 
             ctx.Impl.ResponseHeaders = responseHeaders;
             ctx.Impl.ResponseTrailers = responseTrailers;
-            var call = ctx.Client.HeadersTrailersAsync(new RequestMessage {Value = 1}, requestHeaders);
+            AsyncUnaryCall<ResponseMessage> call = ctx.Client.HeadersTrailersAsync(new RequestMessage {Value = 1}, requestHeaders);
 
             var actualResponseHeaders = await call.ResponseHeadersAsync;
             await call.ResponseAsync;
@@ -498,8 +498,8 @@ namespace Ipc.Grpc.NamedPipes.Tests
         }
 
         [Test,Timeout(TestTimeout)]
-        [TestCaseSource(typeof(GrpcDotNetNamedPipesChannelSource))]
-        public void StartServerAfterStop(GrpcDotNetNamedPipesChannelFactory factory)
+        [TestCaseSource(typeof(NamedPipeChannelSource))]
+        public void StartServerAfterStop(NamedPipeChannelContextFactory factory)
         {
             var server = factory.CreateServer();
             server.Start();

@@ -26,8 +26,7 @@
     </ItemGroup>
 
     <ItemGroup>
-     
-      <ProjectReference Include="..\..\Ipc.Grpc.NamedPipes\Ipc.Grpc.NamedPipes.csproj" />
+      <ProjectReference Include="..\..\..\Ipc.Grpc.NamedPipes\Ipc.Grpc.NamedPipes.csproj" />
       <ProjectReference Include="..\Ipc.Grpc.NamedPipes.Tests.ProtoContract\Ipc.Grpc.NamedPipes.Tests.ProtoContract.csproj" />
     </ItemGroup>
 

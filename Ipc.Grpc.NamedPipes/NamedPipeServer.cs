@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO.Pipes;
 using System.Threading.Tasks;
 using Grpc.Core;
 using Ipc.Grpc.NamedPipes.Internal;
