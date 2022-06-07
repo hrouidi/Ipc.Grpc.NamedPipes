@@ -1,6 +1,4 @@
 ﻿using System.IO.MemoryMappedFiles;
-using Ipc.Grpc.NamedPipes.Tests.Helpers;
-using Ipc.Grpc.NamedPipes.Tests.TestCaseSource;
 using NUnit.Framework;
 
 namespace Ipc.Grpc.NamedPipes.Tests;
@@ -8,8 +6,8 @@ namespace Ipc.Grpc.NamedPipes.Tests;
 public class MMFTests
 {
     [Test]
-    [TestCaseSource(typeof(MultiChannelSource))]
-    public void SimpleUnary(ChannelContextFactory factory)
+    
+    public void MmfPocTest()
     {
         using var mmf = MemoryMappedFile.CreateNew("test", 1024);// MemoryMappedFileAccess.Write, MemoryMappedFileOptions.None, System.IO.HandleInheritability.Inheritable);
         using MemoryMappedViewAccessor accessor = mmf.CreateViewAccessor();

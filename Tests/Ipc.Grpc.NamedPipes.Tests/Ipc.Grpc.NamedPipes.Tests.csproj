@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net461;netcoreapp3.1;net6.0-windows</TargetFrameworks>
+        <LangVersion>10</LangVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+	    <PackageReference Include="Google.Protobuf" Version="3.21.1" />
+	    <PackageReference Include="Grpc" Version="2.46.3" />
+	    <PackageReference Include="Grpc.Core.Api" Version="2.46.3" />
+	    <PackageReference Include="Grpc.Tools" Version="2.46.3" PrivateAssets="All" />
+	    <PackageReference Include="GrpcDotNetNamedPipes" Version="1.4.4" />
+	    <PackageReference Include="JetBrains.DotMemoryUnit" Version="3.2.20220510" />
+      <PackageReference Include="System.IO.Pipes.AccessControl" Version="5.0.0" />
+
+      <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.2.0" />
+      <PackageReference Include="NUnit" Version="3.13.3" />
+      <PackageReference Include="NUnit3TestAdapter" Version="4.2.1" />
+      <PackageReference Include="NUnit.Analyzers" Version="3.3.0" />
+      <PackageReference Include="coverlet.collector" Version="3.1.2" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Protobuf Include="**/*.proto" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\Ipc.Grpc.NamedPipes\Ipc.Grpc.NamedPipes.csproj" />
+    </ItemGroup>
+
+</Project>
