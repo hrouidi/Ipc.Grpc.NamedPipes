@@ -47,6 +47,9 @@ public class NamedPipeTransportTests
         await clientTransport.SendFrame2(expectedRequest, SerializeRequestPayload);
         (Frame actual, Memory<byte>? request) = await readRequestTask;
 
+        Assert.That(actual, Is.EqualTo(expectedRequest));
+        CollectionAssert.AreEqual(request?.ToArray(), expectedRequestPayload);
+
         (Memory<byte>, int) SerializeRequestPayload(Frame frame)
         {
             int frameSize = frame.CalculateSize();
