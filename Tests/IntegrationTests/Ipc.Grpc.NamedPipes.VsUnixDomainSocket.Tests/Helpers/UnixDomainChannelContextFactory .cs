@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Grpc.Net.Client;
 using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
 using Ipc.Grpc.NamedPipes.Tests.ProtoContract;
+using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;

@@ -6,28 +6,28 @@ using PipeOptions = System.IO.Pipes.PipeOptions;
 
 namespace Ipc.Grpc.NamedPipes.Tests.Helpers;
 
-public class PipeStreamCouple : IDisposable
+public class PipeChannel : IDisposable
 {
     public NamedPipeClientStream ClientStream { get; set; }
     public NamedPipeServerStream ServerStream { get; set; }
 
-    public static PipeStreamCouple Create(string pipeName)
+    public static PipeChannel Create(string pipeName)
     {
 
-        PipeStreamCouple ret = new()
+        PipeChannel ret = new()
         {
             ClientStream = new NamedPipeClientStream(".",
-                pipeName,
-                PipeDirection.InOut,
-                PipeOptions.Asynchronous,
-                System.Security.Principal.TokenImpersonationLevel.None,
-                HandleInheritability.None),
+                                  pipeName,
+                                  PipeDirection.InOut,
+                                  PipeOptions.Asynchronous,
+                                  System.Security.Principal.TokenImpersonationLevel.None,
+                                  HandleInheritability.None),
 
             ServerStream = new NamedPipeServerStream(pipeName,
-                PipeDirection.InOut,
-                NamedPipeServerStream.MaxAllowedServerInstances,
-                PipeTransmissionMode.Message,
-                PipeOptions.Asynchronous, 0, 0)
+                                  PipeDirection.InOut,
+                                  NamedPipeServerStream.MaxAllowedServerInstances,
+                                  PipeTransmissionMode.Message,
+                                  PipeOptions.Asynchronous, 0, 0)
         };
 
         Task.WaitAll(ret.ClientStream.ConnectAsync(), ret.ServerStream.WaitForConnectionAsync());

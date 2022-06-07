@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
 using Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.Helpers;
 
 namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.TestCaseSource
