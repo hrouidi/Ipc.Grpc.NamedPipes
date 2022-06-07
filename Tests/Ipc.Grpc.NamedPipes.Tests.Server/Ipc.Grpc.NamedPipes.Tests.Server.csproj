@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net461</TargetFramework>
+		<PlatformTarget>x64</PlatformTarget>
+		<Nullable>enable</Nullable>
+		<LangVersion>10.0</LangVersion>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Grpc" Version="2.46.3" />
+		<PackageReference Include="Grpc.Tools" Version="2.46.3" PrivateAssets="All" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Protobuf Include="**/*.proto" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Ipc.Grpc.NamedPipes\Ipc.Grpc.NamedPipes.csproj" />
+		<ProjectReference Include="..\Ipc.Grpc.NamedPipes.Tests.ProtoContract\Ipc.Grpc.NamedPipes.Tests.ProtoContract.csproj" />
+	</ItemGroup>
+
+</Project>

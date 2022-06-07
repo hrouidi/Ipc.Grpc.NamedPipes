@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFrameworks>net461;net6.0</TargetFrameworks>
+		<LangVersion>10.0</LangVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="BenchmarkDotNet" Version="0.13.1" />
+		<PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.13.1" />
+		<PackageReference Include="protobuf-net.Grpc" Version="1.0.152" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\..\Ipc.Grpc.NamedPipes\Ipc.Grpc.NamedPipes.csproj" />
+	</ItemGroup>
+
+
+</Project>
