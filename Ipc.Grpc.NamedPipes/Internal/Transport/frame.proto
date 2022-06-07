@@ -1,0 +1,60 @@
+
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
+
+package Ipc.Grpc.NamedPipes.TransportProtocol;
+
+message Frame {
+    oneof data {
+        Request request = 1;
+        Response response = 2;
+        Control requestControl = 3;
+        Headers responseHeaders = 4;
+    }
+}
+
+message Request {
+	string methodFullName = 1;
+	MethodType methodType = 2;
+	google.protobuf.Timestamp deadline = 3;
+	Headers headers = 4;
+    
+	enum MethodType
+	{
+		unary = 0;
+		clientStreaming = 1;
+		serverStreaming = 2;
+		duplexStreaming = 3;
+	}
+}
+
+message Response {
+	Trailers trailers = 1;
+}
+
+enum Control {
+    none = 0;
+    cancel = 1;
+    stream_message = 2;
+    stream_message_end = 3;
+}
+
+message Headers {
+    repeated MetadataEntry metadata = 1;
+}
+
+message Trailers {
+	repeated MetadataEntry metadata = 1;
+	int32 status_code = 2;
+	string status_detail = 3;
+}
+
+message MetadataEntry {
+    string name = 1;
+    oneof value {
+        string valueString = 2;
+        bytes valueBytes = 3;
+    }
+}

@@ -38,6 +38,7 @@
     
     <ItemGroup>
       <None Remove="Internal\messages.proto" />
+      <None Remove="Internal\Transport\messages.proto" />
     </ItemGroup>
 
 </Project>

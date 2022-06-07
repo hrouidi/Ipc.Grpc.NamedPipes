@@ -1,102 +1,114 @@
 #nullable enable
 using System;
 using System.Buffers;
-using System.Buffers.Binary;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using Grpc.Core;
 using Ipc.Grpc.NamedPipes.Internal.Helpers;
-using Ipc.Grpc.NamedPipes.Protocol;
+
+using Ipc.Grpc.NamedPipes.TransportProtocol;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
     internal class NamedPipeTransportV2
     {
-        private const int _messageSize = 4;
-        private readonly byte[] _messageSizeBuffer = new byte[_messageSize];
+        private readonly byte[] _frameHeader = new byte[FrameHeader.Size];
         private readonly PipeStream _pipeStream;
 
         public NamedPipeTransportV2(PipeStream pipeStream) => _pipeStream = pipeStream;
 
 
-        #region new Client
-
-        private async ValueTask<(ServerMessage, MemoryStream? rep)> ReadServerFrame(CancellationToken token = default)
-        {
-            MemoryStream? packet = await ReadOverPipeStream(token).ConfigureAwait(false);
-            ServerMessage message = ServerMessage.Parser.ParseDelimitedFrom(packet);
-            return (message, packet);
-        }
-
-        public ValueTask SendClientFrame(ClientMessage message, Action<MemoryStream>? requestSerializer, CancellationToken token)
-        {
-            MemoryStream ms = new();
-            message.WriteDelimitedTo(ms);
-            requestSerializer?.Invoke(ms);
-            return SendOverPipeStream(ms, token);
-        }
-
-        #endregion
-
-        #region new Server
-
-        private async ValueTask<(ClientMessage, MemoryStream? req)> ReadClientFrame(CancellationToken token = default)
-        {
-            MemoryStream? packet = await ReadOverPipeStream(token).ConfigureAwait(false);
-            ClientMessage message = ClientMessage.Parser.ParseDelimitedFrom(packet);
-            return (message, packet);
-        }
-
-        public ValueTask SendServerFrame(ServerMessage message, Action<MemoryStream>? requestSerializer, CancellationToken token)
-        {
-            MemoryStream ms = new();
-            message.WriteDelimitedTo(ms);
-            requestSerializer?.Invoke(ms);
-            return SendOverPipeStream(ms, token);
-        }
-
-
-        #endregion
-
-
         //TODO : make this allocation free
-        private async ValueTask<MemoryStream> ReadOverPipeStream(CancellationToken token = default)
+        public async ValueTask<(Frame, Memory<byte>? payloadBytes)> ReadFrame(CancellationToken token = default)
         {
-            int readBytes = await _pipeStream.ReadAsync(_messageSizeBuffer, 0, _messageSize, token).ConfigureAwait(false);
-            int messageSize = DecodeSize(_messageSizeBuffer);
+            int readBytes = await _pipeStream.ReadAsync(_frameHeader, 0, FrameHeader.Size, token).ConfigureAwait(false);
+            Debug.Assert(readBytes == FrameHeader.Size, "Client does not speak my dialect :/");
 
-            IMemoryOwner<byte> manager = MemoryPool<byte>.Shared.Rent(messageSize);
-            Memory<byte> buffer = manager.Memory.Slice(0, messageSize);
+            FrameHeader header = FrameHeader.FromSpan(_frameHeader);
+
+            IMemoryOwner<byte> manager = MemoryPool<byte>.Shared.Rent(header.TotalSize);
+            Memory<byte> buffer = manager.Memory.Slice(0, header.TotalSize);
 
             readBytes = await _pipeStream.ReadAsync(buffer, token)
                                          .ConfigureAwait(false);
-
-
-            var packet = new MemoryStream(buffer.Length);
-            await packet.WriteAsync(buffer, token).ConfigureAwait(false);
-            packet.Position = 0;
-            return packet;
+            Debug.Assert(readBytes == header.TotalSize, "Client is a layer !");
+            Frame? message = Frame.Parser.ParseFrom(buffer.Span.Slice(0, header.FrameSize));
+            if (header.PayloadSize == 0)
+            {
+                manager.Dispose();
+                return (message, default);
+            }
+            var payloadBytes = buffer.Slice(header.FrameSize);
+            return (message, payloadBytes);
         }
 
-        //TODO : make this allocation free
-        private async ValueTask SendOverPipeStream(MemoryStream frame, CancellationToken token)
+        //TODO: Optimize memory allocation here
+        public async ValueTask SendFrame(Frame message, Action<MemoryStream>? requestSerializer, CancellationToken token = default)
         {
-            using var manager = MemoryPool<byte>.Shared.Rent(sizeof(int));
-            Memory<byte> bytes = manager.Memory.Slice(0, sizeof(int));
-            EncodeSize(bytes.Span, (int)frame.Length);
+            using MemoryStream ms = new();
+            message.WriteTo(ms);
+            int frameSize = (int)ms.Length;
+            requestSerializer?.Invoke(ms);
+            using IMemoryOwner<byte>? manager = MemoryPool<byte>.Shared.Rent(FrameHeader.Size);
+            Memory<byte> bytes = manager.Memory.Slice(0, FrameHeader.Size);
+            var header = new FrameHeader((int)ms.Length, frameSize);
+            FrameHeader.ToSpan(bytes.Span, ref header);
             await _pipeStream.WriteAsync(bytes, token).ConfigureAwait(false);
-            frame.WriteTo(_pipeStream);
-            frame.Dispose();
+            ms.WriteTo(_pipeStream);
         }
+    }
 
-        private static void EncodeSize(in Span<byte> destination, int size)
+    [StructLayout(LayoutKind.Sequential, Size = Size)]
+    public readonly struct FrameHeader : IEquatable<FrameHeader>
+    {
+        public const int Size = 2 * sizeof(int);
+        public FrameHeader(int totalSize, int frameSize)
         {
-            BinaryPrimitives.WriteInt32LittleEndian(destination, size);
+            TotalSize = totalSize;
+            FrameSize = frameSize;
         }
-        private static int DecodeSize(in ReadOnlySpan<byte> bytes) => BinaryPrimitives.ReadInt32LittleEndian(bytes);
 
+        public int TotalSize { get; }
+
+        public int FrameSize { get; }
+
+        public int PayloadSize => TotalSize - FrameSize;
+
+        public static FrameHeader FromSpan(ReadOnlySpan<byte> span)
+        {
+            return MemoryMarshal.Read<FrameHeader>(span);
+        }
+
+        //TODO: Optimize ToSpan 
+        public static void ToSpan(Span<byte> destination, ref FrameHeader frameHeader)
+        {
+            MemoryMarshal.Write(destination, ref frameHeader);
+        }
+
+        #region Equality 
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                return (TotalSize * 397) ^ FrameSize;
+            }
+        }
+
+        public bool Equals(FrameHeader other) => TotalSize == other.TotalSize && FrameSize == other.FrameSize;
+
+        public override bool Equals(object? obj) => obj is FrameHeader other && Equals(other);
+
+        public static bool operator ==(FrameHeader left, FrameHeader right) => left.Equals(right);
+
+        public static bool operator !=(FrameHeader left, FrameHeader right) => !left.Equals(right);
+
+        #endregion
+
+        public override string ToString() => $"[{nameof(TotalSize)} = {TotalSize}],[{nameof(FrameSize)} ={FrameSize}],[{nameof(PayloadSize)} ={PayloadSize}]";
     }
 }

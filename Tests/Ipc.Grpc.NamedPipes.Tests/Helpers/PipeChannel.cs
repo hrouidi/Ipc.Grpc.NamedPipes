@@ -35,6 +35,10 @@ public class PipeChannel : IDisposable
         return ret;
 
     }
+    public static PipeChannel CreateRandom()
+    {
+        return Create(Guid.NewGuid().ToString());
+    }
 
     public void Dispose()
     {

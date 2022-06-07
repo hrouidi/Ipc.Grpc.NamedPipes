@@ -6,7 +6,6 @@ namespace Ipc.Grpc.NamedPipes.Tests;
 public class MMFTests
 {
     [Test]
-    
     public void MmfPocTest()
     {
         using var mmf = MemoryMappedFile.CreateNew("test", 1024);// MemoryMappedFileAccess.Write, MemoryMappedFileOptions.None, System.IO.HandleInheritability.Inheritable);
