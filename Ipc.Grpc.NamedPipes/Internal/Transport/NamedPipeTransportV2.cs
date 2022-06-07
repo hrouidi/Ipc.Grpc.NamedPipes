@@ -14,24 +14,29 @@ using Ipc.Grpc.NamedPipes.TransportProtocol;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
-    internal class NamedPipeTransportV2
+    internal class NamedPipeTransportV2 : IDisposable
     {
-        private readonly byte[] _frameHeader = new byte[FrameHeader.Size];
+        private readonly byte[] _frameHeaderBytes;//= new byte[FrameHeader.Size];
         private readonly PipeStream _pipeStream;
 
-        public NamedPipeTransportV2(PipeStream pipeStream) => _pipeStream = pipeStream;
+        public NamedPipeTransportV2(PipeStream pipeStream)
+        {
+            _pipeStream = pipeStream;
+            _frameHeaderBytes = ArrayPool<byte>.Shared.Rent(FrameHeader.Size);
+        }
 
 
         //TODO : make this allocation free
         public async ValueTask<(Frame, Memory<byte>? payloadBytes)> ReadFrame(CancellationToken token = default)
         {
-            int readBytes = await _pipeStream.ReadAsync(_frameHeader, 0, FrameHeader.Size, token).ConfigureAwait(false);
+            int readBytes = await _pipeStream.ReadAsync(_frameHeaderBytes, 0, FrameHeader.Size, token)
+                                             .ConfigureAwait(false);
             Debug.Assert(readBytes == FrameHeader.Size, "Client does not speak my dialect :/");
 
-            FrameHeader header = FrameHeader.FromSpan(_frameHeader);
+            FrameHeader header = FrameHeader.FromSpan(_frameHeaderBytes.AsSpan().Slice(0, FrameHeader.Size));
 
-            IMemoryOwner<byte> manager = MemoryPool<byte>.Shared.Rent(header.TotalSize);
-            Memory<byte> buffer = manager.Memory.Slice(0, header.TotalSize);
+            IMemoryOwner<byte> owner = MemoryPool<byte>.Shared.Rent(header.TotalSize);
+            Memory<byte> buffer = owner.Memory.Slice(0, header.TotalSize);
 
             readBytes = await _pipeStream.ReadAsync(buffer, token)
                                          .ConfigureAwait(false);
@@ -39,26 +44,49 @@ namespace Ipc.Grpc.NamedPipes.Internal
             Frame? message = Frame.Parser.ParseFrom(buffer.Span.Slice(0, header.FrameSize));
             if (header.PayloadSize == 0)
             {
-                manager.Dispose();
-                return (message, default);
+                owner.Dispose();
+                return (message, null);
             }
             var payloadBytes = buffer.Slice(header.FrameSize);
             return (message, payloadBytes);
         }
 
         //TODO: Optimize memory allocation here
-        public async ValueTask SendFrame(Frame message, Action<MemoryStream>? requestSerializer, CancellationToken token = default)
+        public async ValueTask SendFrame(Frame message, Action<MemoryStream>? payloadSerializer, CancellationToken token = default)
         {
             using MemoryStream ms = new();
             message.WriteTo(ms);
             int frameSize = (int)ms.Length;
-            requestSerializer?.Invoke(ms);
-            using IMemoryOwner<byte>? manager = MemoryPool<byte>.Shared.Rent(FrameHeader.Size);
-            Memory<byte> bytes = manager.Memory.Slice(0, FrameHeader.Size);
+            payloadSerializer?.Invoke(ms);
+            using IMemoryOwner<byte>? memoryOwner = MemoryPool<byte>.Shared.Rent(FrameHeader.Size);
+            Memory<byte> bytes = memoryOwner.Memory.Slice(0, FrameHeader.Size);
             var header = new FrameHeader((int)ms.Length, frameSize);
             FrameHeader.ToSpan(bytes.Span, ref header);
             await _pipeStream.WriteAsync(bytes, token).ConfigureAwait(false);
             ms.WriteTo(_pipeStream);
+        }
+        public async ValueTask SendFrame2(Frame message, Func<Frame, (Memory<byte>, int)> messageSerializer, CancellationToken token = default)
+        {
+            //Serialize Frame message & payload if any
+            (Memory<byte> messageBytes, int payloadSize) = messageSerializer.Invoke(message);
+
+            //Header to bytes
+            var header = new FrameHeader(messageBytes.Length, messageBytes.Length - payloadSize);
+            using IMemoryOwner<byte>? memoryOwner = MemoryPool<byte>.Shared.Rent(FrameHeader.Size);
+            Memory<byte> headerBytes = memoryOwner.Memory.Slice(0, FrameHeader.Size);
+            FrameHeader.ToSpan(headerBytes.Span, ref header);
+
+            //#1 : Write header bytes (always fixed size = 8 bytes) [total size of Frame + payload,size of Frame ]
+            await _pipeStream.WriteAsync(headerBytes, token).ConfigureAwait(false);
+            //#2 :  Write Frame message + payload if any
+            await _pipeStream.WriteAsync(messageBytes, token).ConfigureAwait(false);
+            //#3 : release messageBytes memory
+            //TODO:
+        }
+
+        public void Dispose()
+        {
+            ArrayPool<byte>.Shared.Return(_frameHeaderBytes);
         }
     }
 

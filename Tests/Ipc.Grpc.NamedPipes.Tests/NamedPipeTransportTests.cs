@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -7,6 +8,7 @@ using Ipc.Grpc.NamedPipes.Internal;
 using Ipc.Grpc.NamedPipes.Tests.Helpers;
 using Ipc.Grpc.NamedPipes.TransportProtocol;
 using NUnit.Framework;
+using Google.Protobuf;
 
 namespace Ipc.Grpc.NamedPipes.Tests;
 
@@ -27,6 +29,38 @@ public class NamedPipeTransportTests
         Assert.That(h, Is.EqualTo(h2));
     }
 
+    [Test]
+    public async Task SendFrame2_Test()
+    {
+        using var channel = PipeChannel.CreateRandom();
+        Fixture fixture = new();
+        var expectedRequest = fixture.Create<Frame>();
+        var expectedResponse = fixture.Create<Frame>();
+
+        Random random = new();
+        byte[] expectedRequestPayload = new byte[100];
+        random.NextBytes(expectedRequestPayload);
+
+        var clientTransport = new NamedPipeTransportV2(channel.ClientStream);
+        var serverTransport = new NamedPipeTransportV2(channel.ServerStream);
+        var readRequestTask = serverTransport.ReadFrame();
+        await clientTransport.SendFrame2(expectedRequest, SerializeRequestPayload);
+        (Frame actual, Memory<byte>? request) = await readRequestTask;
+
+        (Memory<byte>, int) SerializeRequestPayload(Frame frame)
+        {
+            int frameSize = frame.CalculateSize();
+            var owner = MemoryPool<byte>.Shared.Rent(frameSize + expectedRequestPayload.Length);
+            Memory<byte> messageBytes = owner.Memory.Slice(0, frameSize + expectedRequestPayload.Length);
+            frame.WriteTo(messageBytes.Span.Slice(0, frameSize));
+
+            Memory<byte> payLoadBytes = messageBytes.Slice(frameSize);
+            expectedRequestPayload.AsMemory()
+                                  .CopyTo(payLoadBytes);
+
+            return (messageBytes, expectedRequestPayload.Length);
+        }
+    }
 
     [Test]
     public async Task Frames_WithoutPayload_FullRoadTrip_Test()
