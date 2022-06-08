@@ -122,7 +122,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             if (request != null)
                 SerializationHelpers.Serialize(ms, method.RequestMarshaller, request);
 
-            return SendOverPipeStream(ms, token);
+            return SendOverPipeStream00(ms, token);
         }
 
         public void SendRequest<TRequest, TResponse>(Method<TRequest, TResponse> method, TRequest request, DateTime? deadline, Metadata headers)
@@ -161,12 +161,22 @@ namespace Ipc.Grpc.NamedPipes.Internal
         #endregion
 
         //TODO : make this allocation free
-        private async ValueTask SendOverPipeStream(MemoryStream frame, CancellationToken token)
+        private async ValueTask SendOverPipeStream00(MemoryStream frame, CancellationToken token)
         {
             using var manager = MemoryPool<byte>.Shared.Rent(sizeof(int));
             Memory<byte> bytes = manager.Memory.Slice(0, sizeof(int));
             EncodeSize(bytes.Span, (int)frame.Length);
             await _pipeStream.WriteAsync(bytes, token).ConfigureAwait(false);
+            frame.WriteTo(_pipeStream);
+            frame.Dispose();
+        }
+
+        private async ValueTask SendOverPipeStream(MemoryStream frame, CancellationToken token)
+        {
+            byte[] bytes = new byte[sizeof(int)];
+            EncodeSize(bytes, (int)frame.Length);
+            //await _pipeStream.WriteAsync(bytes, token).ConfigureAwait(false);
+            await frame.WriteAsync(bytes, token).ConfigureAwait(false);
             frame.WriteTo(_pipeStream);
             frame.Dispose();
         }
@@ -224,7 +234,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             if (response != null)
                 SerializationHelpers.Serialize(ms, marshaller, response);
 
-            return SendOverPipeStream(ms, token);
+            return SendOverPipeStream00(ms, token);
         }
 
         public ValueTask SendUnaryResponse(Metadata trailers, StatusCode statusCode, string statusDetail, CancellationToken token)

@@ -25,7 +25,6 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _frameHeaderBytes = ArrayPool<byte>.Shared.Rent(FrameHeader.Size);
         }
 
-        //TODO : make this allocation free
         public async ValueTask<(Frame, Memory<byte>? payloadBytes)> ReadFrame(CancellationToken token = default)
         {
             int readBytes = await _pipeStream.ReadAsync(_frameHeaderBytes, 0, FrameHeader.Size, token)
@@ -40,6 +39,33 @@ namespace Ipc.Grpc.NamedPipes.Internal
             readBytes = await _pipeStream.ReadAsync(buffer, token)
                                          .ConfigureAwait(false);
             Debug.Assert(readBytes == header.TotalSize, "Client is a layer !");
+            Frame? message = Frame.Parser.ParseFrom(buffer.Span.Slice(0, header.FrameSize));
+            if (header.PayloadSize == 0)
+            {
+                owner.Dispose();
+                return (message, null);
+            }
+            var payloadBytes = buffer.Slice(header.FrameSize);
+            return (message, payloadBytes);
+        }
+
+        //TODO : make this allocation free
+        public async ValueTask<(Frame, Memory<byte>? payloadBytes)> ReadFrame3(CancellationToken token = default)
+        {
+            int readBytes = await _pipeStream.ReadAsync(_frameHeaderBytes, 0, FrameHeader.Size, token)
+                                             .ConfigureAwait(false);
+            Debug.Assert(readBytes == FrameHeader.Size, "Client does not speak my dialect :/");
+
+            FrameHeader header = FrameHeader.FromSpan(_frameHeaderBytes.AsSpan().Slice(0, FrameHeader.Size));
+
+            IMemoryOwner<byte> owner = MemoryPool<byte>.Shared.Rent(header.TotalSize);
+            Memory<byte> buffer = owner.Memory.Slice(0, header.TotalSize - FrameHeader.Size);
+
+            readBytes = await _pipeStream.ReadAsync(buffer, token)
+                                         .ConfigureAwait(false);
+            Debug.Assert(readBytes == header.TotalSize - FrameHeader.Size, "Client is a layer !");
+            Debug.Assert(_pipeStream.IsMessageComplete, "Unexpected message :too long!");
+
             Frame? message = Frame.Parser.ParseFrom(buffer.Span.Slice(0, header.FrameSize));
             if (header.PayloadSize == 0)
             {
@@ -84,6 +110,21 @@ namespace Ipc.Grpc.NamedPipes.Internal
             //#1 : Write header bytes (always fixed size = 8 bytes) [total size of Frame + payload,size of Frame ]
             await _pipeStream.WriteAsync(headerBytes, token).ConfigureAwait(false);
             //#2 :  Write Frame message + payload if any
+            await _pipeStream.WriteAsync(messageBytes, token).ConfigureAwait(false);
+            //#3 : release messageBytes memory
+            //TODO:
+        }
+
+        public async ValueTask SendFrame3(Frame message, Func<Frame, (Memory<byte>, int,int)> messageSerializer, CancellationToken token = default)
+        {
+            //Serialize Frame message & payload if any
+            (Memory<byte> messageBytes,int frameSize,int payloadSize) = messageSerializer.Invoke(message);
+            Debug.Assert(messageBytes.Length == payloadSize + frameSize + FrameHeader.Size);
+            //Header to bytes
+            var header = new FrameHeader(messageBytes.Length, frameSize);
+            FrameHeader.ToSpan(messageBytes.Span.Slice(0, FrameHeader.Size), ref header);
+
+            //#1 : Write header bytes (always fixed size = 8 bytes) [total size of Frame + payload,size of Frame ] + Write Frame message + payload if any
             await _pipeStream.WriteAsync(messageBytes, token).ConfigureAwait(false);
             //#3 : release messageBytes memory
             //TODO:

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO.Pipes;
+using System.Linq;
 using System.Threading.Tasks;
 using Ipc.Grpc.NamedPipes.Internal;
 using Ipc.Grpc.NamedPipes.Tests.Helpers;
@@ -46,22 +47,46 @@ public class ServerListenerTests
     }
 
     [Test]
-    [TestCase(10, 1)]
+    [TestCase(1000, 1)]
     public async Task Throughput_Tests(int clientCount, int connectionTimeoutMs)
     {
         var pipeName = $"{Guid.NewGuid()}";
 
         using var pool = new ServerListener(pipeName, NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnectionContext, ValueTask>>());
-        pool.Start(9);
+        pool.Start();
         //await Task.Delay(10);
 
         List<Task> clients = new List<Task>(clientCount);
-        for (int i = 0; i < clientCount; i++)
-        {
-            NamedPipeClientStream client = PipeChannel.CreateClientPipe(pipeName);
+        foreach (var client in Enumerable.Range(0, clientCount).Select(x => PipeChannel.CreateClientPipe(pipeName)))
             clients.Add(client.ConnectAsync(connectionTimeoutMs));
-            //await Task.Delay(1000);
+        //for (int i = 0; i < clientCount; i++)
+        //{
+        //    NamedPipeClientStream client = PipeChannel.CreateClientPipe(pipeName);
+        //    clients.Add(client.ConnectAsync(connectionTimeoutMs));
+        //    //await Task.Delay(1);
+        //}
+        try
+        {
+            await Task.WhenAll(clients.ToArray());
         }
-        await Task.WhenAll(clients.ToArray());
+        catch (Exception e)
+        {
+            //Console.WriteLine(e.ToString());
+        }
+        finally
+        {
+            Console.WriteLine($"Connected: {clients.Count(x => x.IsCompleted)}/{clientCount}");
+            Console.WriteLine($"Faulted: {clients.Count(x=>x.IsFaulted)}/{clientCount}");
+            //Console.WriteLine($"Connected: {clients.Where(x=>x.Status =)}/{clientCount}");
+        }
+        
+    }
+
+    [Test, Explicit]
+    public void Debug_Tests()
+    {
+        var channel = PipeChannel.CreateRandom();
+        channel.ServerStream.Disconnect();
+        Task.WaitAll(channel.ClientStream.ConnectAsync(), channel.ServerStream.WaitForConnectionAsync());
     }
 }

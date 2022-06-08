@@ -3,7 +3,7 @@ using System.IO.Pipes;
 using System.Threading.Tasks;
 using PipeOptions = System.IO.Pipes.PipeOptions;
 
-namespace Ipc.Grpc.NamedPipes.Benchmarks;
+namespace Ipc.Grpc.NamedPipes.Benchmarks.Helpers;
 
 public class PipeStreamCouple
 {

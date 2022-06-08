@@ -17,3 +17,4 @@ using System.Runtime.InteropServices;
 
 [assembly: Guid("16c9946d-c184-4c4e-a72a-81a2c19e6888")]
 [assembly: InternalsVisibleTo("Ipc.Grpc.NamedPipes.Tests")]
+[assembly: InternalsVisibleTo("Ipc.Grpc.NamedPipes.Benchmarks")]

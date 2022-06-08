@@ -23,7 +23,7 @@ public class NamedPipeTransportTests
         var ret = NamedPipeTransportV2.FrameHeader.FromSpan(bytes);
         NamedPipeTransportV2.FrameHeader.ToSpan(layout, ref ret);
 
-        NamedPipeTransportV2.FrameHeader h = new (15, 8);
+        NamedPipeTransportV2.FrameHeader h = new(15, 8);
         NamedPipeTransportV2.FrameHeader.ToSpan(layout2, ref h);
         var h2 = NamedPipeTransportV2.FrameHeader.FromSpan(layout2);
         Assert.That(h, Is.EqualTo(h2));
@@ -67,6 +67,50 @@ public class NamedPipeTransportTests
     }
 
     [Test]
+    public async Task SendFrame3_Test()
+    {
+        using var channel = PipeChannel.CreateRandom();
+        
+        Fixture fixture = new();
+        var expectedRequest = fixture.Create<Frame>();
+        var expectedResponse = fixture.Create<Frame>();
+
+        Random random = new();
+        byte[] expectedRequestPayload = new byte[100];
+        random.NextBytes(expectedRequestPayload);
+
+        using var clientTransport = new NamedPipeTransportV2(channel.ClientStream);
+        using var serverTransport = new NamedPipeTransportV2(channel.ServerStream);
+
+        var readRequestTask = serverTransport.ReadFrame3();
+        await clientTransport.SendFrame3(expectedRequest, SerializeRequestPayload);
+        (Frame actual, Memory<byte>? request) = await readRequestTask;
+
+        Assert.That(actual, Is.EqualTo(expectedRequest));
+        CollectionAssert.AreEqual(request?.ToArray(), expectedRequestPayload);
+
+        (Memory<byte> MsgBytes, int frameSize, int payloadSize) SerializeRequestPayload(Frame frame)
+        {
+            int padding = NamedPipeTransportV2.FrameHeader.Size;
+            int frameSize = frame.CalculateSize();
+            //All
+            var owner = MemoryPool<byte>.Shared.Rent(padding + frameSize + expectedRequestPayload.Length );
+            Memory<byte> messageBytes = owner.Memory.Slice(0, padding +frameSize + expectedRequestPayload.Length);
+            //#1 : will be set later in send method
+
+            //#2 : frame
+            Memory<byte> frameBytes = messageBytes.Slice(padding, frameSize);
+            frame.WriteTo(frameBytes.Span);
+            //#3 : payload
+            Memory<byte> payLoadBytes = messageBytes.Slice(padding + frameSize);
+            expectedRequestPayload.AsMemory()
+                                  .CopyTo(payLoadBytes);
+
+            return (messageBytes, frameSize,expectedRequestPayload.Length);
+        }
+    }
+
+    [Test]
     public async Task Frames_WithoutPayload_FullRoadTrip_Test()
     {
         //Arrange
@@ -98,6 +142,7 @@ public class NamedPipeTransportTests
     [Test]
     public async Task Frames_Payload_FullRoadTrip_Test()
     {
+        //Arrange
         using var channel = PipeChannel.CreateRandom();
         Random random = new();
         Fixture fixture = new();

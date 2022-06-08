@@ -7,7 +7,7 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
     {
         static void Main(string[] args)
         {
-            Summary summary = BenchmarkRunner.Run<ReadFromPipe>();
+            Summary summary = BenchmarkRunner.Run<TransportBenchmarks>();
         }
     }
 }

@@ -8,6 +8,7 @@ using BenchmarkDotNet.Jobs;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
+using Ipc.Grpc.NamedPipes.Benchmarks.Helpers;
 using Ipc.Grpc.NamedPipes.Protocol;
 using Perfolizer.Mathematics.OutlierDetection;
 
