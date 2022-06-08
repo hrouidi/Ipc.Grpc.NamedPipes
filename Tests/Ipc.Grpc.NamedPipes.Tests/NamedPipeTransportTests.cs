@@ -24,7 +24,7 @@ public class NamedPipeTransportTests
         NamedPipeTransportV2.FrameHeader.ToSpan(layout, ref ret);
 
         NamedPipeTransportV2.FrameHeader h = new(15, 8);
-        NamedPipeTransportV2.FrameHeader.ToSpan(layout2, ref h);
+        NamedPipeTransportV2.FrameHeader.ToSpan3(layout2, 15,8);
         var h2 = NamedPipeTransportV2.FrameHeader.FromSpan(layout2);
         Assert.That(h, Is.EqualTo(h2));
     }
@@ -89,7 +89,7 @@ public class NamedPipeTransportTests
         Assert.That(actual, Is.EqualTo(expectedRequest));
         CollectionAssert.AreEqual(request?.ToArray(), expectedRequestPayload);
 
-        (Memory<byte> MsgBytes, int frameSize, int payloadSize) SerializeRequestPayload(Frame frame)
+        (Memory<byte> MsgBytes, int frameSize) SerializeRequestPayload(Frame frame)
         {
             int padding = NamedPipeTransportV2.FrameHeader.Size;
             int frameSize = frame.CalculateSize();
@@ -106,7 +106,7 @@ public class NamedPipeTransportTests
             expectedRequestPayload.AsMemory()
                                   .CopyTo(payLoadBytes);
 
-            return (messageBytes, frameSize,expectedRequestPayload.Length);
+            return (messageBytes, frameSize);
         }
     }
 

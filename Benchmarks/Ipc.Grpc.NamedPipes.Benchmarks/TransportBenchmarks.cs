@@ -98,7 +98,7 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
         }
 
 
-        private (Memory<byte> MsgBytes, int frameSize, int payloadSize) SerializeRequestPayload3(Frame frame)
+        private (Memory<byte> MsgBytes, int frameSize) SerializeRequestPayload3(Frame frame)
         {
             int padding = NamedPipeTransportV2.FrameHeader.Size;
             int frameSize = frame.CalculateSize();
@@ -115,7 +115,7 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
             _expectedRequestPayload.AsMemory()
                                    .CopyTo(payLoadBytes);
 
-            return (messageBytes, frameSize, _expectedRequestPayload.Length);
+            return (messageBytes, frameSize);
         }
 
         private (Memory<byte>, int) SerializeRequestPayload2(Frame frame)
