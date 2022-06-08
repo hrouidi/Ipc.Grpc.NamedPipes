@@ -20,12 +20,12 @@ public class NamedPipeTransportTests
         Span<byte> layout = stackalloc byte[8];
         Span<byte> layout2 = stackalloc byte[8];
         var bytes = new byte[8];
-        var ret = FrameHeader.FromSpan(bytes);
-        FrameHeader.ToSpan(layout, ref ret);
+        var ret = NamedPipeTransportV2.FrameHeader.FromSpan(bytes);
+        NamedPipeTransportV2.FrameHeader.ToSpan(layout, ref ret);
 
-        FrameHeader h = new FrameHeader(15, 8);
-        FrameHeader.ToSpan(layout2, ref h);
-        var h2 = FrameHeader.FromSpan(layout2);
+        NamedPipeTransportV2.FrameHeader h = new (15, 8);
+        NamedPipeTransportV2.FrameHeader.ToSpan(layout2, ref h);
+        var h2 = NamedPipeTransportV2.FrameHeader.FromSpan(layout2);
         Assert.That(h, Is.EqualTo(h2));
     }
 
@@ -41,8 +41,9 @@ public class NamedPipeTransportTests
         byte[] expectedRequestPayload = new byte[100];
         random.NextBytes(expectedRequestPayload);
 
-        var clientTransport = new NamedPipeTransportV2(channel.ClientStream);
-        var serverTransport = new NamedPipeTransportV2(channel.ServerStream);
+        using var clientTransport = new NamedPipeTransportV2(channel.ClientStream);
+        using var serverTransport = new NamedPipeTransportV2(channel.ServerStream);
+
         var readRequestTask = serverTransport.ReadFrame();
         await clientTransport.SendFrame2(expectedRequest, SerializeRequestPayload);
         (Frame actual, Memory<byte>? request) = await readRequestTask;
@@ -74,8 +75,8 @@ public class NamedPipeTransportTests
         var expectedRequest = fixture.Create<Frame>();
         var expectedResponse = fixture.Create<Frame>();
 
-        var clientTransport = new NamedPipeTransportV2(channel.ClientStream);
-        var serverTransport = new NamedPipeTransportV2(channel.ServerStream);
+        using var clientTransport = new NamedPipeTransportV2(channel.ClientStream);
+        using var serverTransport = new NamedPipeTransportV2(channel.ServerStream);
 
         //Act
         var readRequestTask = serverTransport.ReadFrame();
@@ -92,6 +93,8 @@ public class NamedPipeTransportTests
         Assert.That(serverMessage, Is.EqualTo(expectedResponse));
         Assert.IsNull(response);
     }
+
+
     [Test]
     public async Task Frames_Payload_FullRoadTrip_Test()
     {
@@ -105,8 +108,8 @@ public class NamedPipeTransportTests
         byte[] expectedResponsePayload = new byte[100];
         random.NextBytes(expectedResponsePayload);
 
-        var clientTransport = new NamedPipeTransportV2(channel.ClientStream);
-        var serverTransport = new NamedPipeTransportV2(channel.ServerStream);
+        using var clientTransport = new NamedPipeTransportV2(channel.ClientStream);
+        using var serverTransport = new NamedPipeTransportV2(channel.ServerStream);
 
         //Act
         var readRequestTask = serverTransport.ReadFrame();

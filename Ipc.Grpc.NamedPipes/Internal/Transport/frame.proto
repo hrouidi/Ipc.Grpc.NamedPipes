@@ -6,6 +6,7 @@ import "google/protobuf/any.proto";
 
 package Ipc.Grpc.NamedPipes.TransportProtocol;
 
+//TODO: move this to FrameHeader
 message Frame {
     oneof data {
         Request request = 1;

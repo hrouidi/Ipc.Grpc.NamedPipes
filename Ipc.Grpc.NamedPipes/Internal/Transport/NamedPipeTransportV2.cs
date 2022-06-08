@@ -16,7 +16,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 {
     internal class NamedPipeTransportV2 : IDisposable
     {
-        private readonly byte[] _frameHeaderBytes;//= new byte[FrameHeader.Size];
+        private readonly byte[] _frameHeaderBytes;
         private readonly PipeStream _pipeStream;
 
         public NamedPipeTransportV2(PipeStream pipeStream)
@@ -24,7 +24,6 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _pipeStream = pipeStream;
             _frameHeaderBytes = ArrayPool<byte>.Shared.Rent(FrameHeader.Size);
         }
-
 
         //TODO : make this allocation free
         public async ValueTask<(Frame, Memory<byte>? payloadBytes)> ReadFrame(CancellationToken token = default)
@@ -58,13 +57,19 @@ namespace Ipc.Grpc.NamedPipes.Internal
             message.WriteTo(ms);
             int frameSize = (int)ms.Length;
             payloadSerializer?.Invoke(ms);
+
+            //Header to bytes
             using IMemoryOwner<byte>? memoryOwner = MemoryPool<byte>.Shared.Rent(FrameHeader.Size);
             Memory<byte> bytes = memoryOwner.Memory.Slice(0, FrameHeader.Size);
             var header = new FrameHeader((int)ms.Length, frameSize);
             FrameHeader.ToSpan(bytes.Span, ref header);
+
+            //#1 : Write header bytes (always fixed size = 8 bytes) [total size of Frame + payload,size of Frame ]
             await _pipeStream.WriteAsync(bytes, token).ConfigureAwait(false);
+            //#2 :  Write Frame message + payload if any
             ms.WriteTo(_pipeStream);
         }
+        //TODO: Optimize memory allocation here
         public async ValueTask SendFrame2(Frame message, Func<Frame, (Memory<byte>, int)> messageSerializer, CancellationToken token = default)
         {
             //Serialize Frame message & payload if any
@@ -88,55 +93,58 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             ArrayPool<byte>.Shared.Return(_frameHeaderBytes);
         }
-    }
 
-    [StructLayout(LayoutKind.Sequential, Size = Size)]
-    public readonly struct FrameHeader : IEquatable<FrameHeader>
-    {
-        public const int Size = 2 * sizeof(int);
-        public FrameHeader(int totalSize, int frameSize)
+        [StructLayout(LayoutKind.Sequential, Size = Size)]
+        public readonly struct FrameHeader : IEquatable<FrameHeader>
         {
-            TotalSize = totalSize;
-            FrameSize = frameSize;
-        }
-
-        public int TotalSize { get; }
-
-        public int FrameSize { get; }
-
-        public int PayloadSize => TotalSize - FrameSize;
-
-        public static FrameHeader FromSpan(ReadOnlySpan<byte> span)
-        {
-            return MemoryMarshal.Read<FrameHeader>(span);
-        }
-
-        //TODO: Optimize ToSpan 
-        public static void ToSpan(Span<byte> destination, ref FrameHeader frameHeader)
-        {
-            MemoryMarshal.Write(destination, ref frameHeader);
-        }
-
-        #region Equality 
-
-        public override int GetHashCode()
-        {
-            unchecked
+            public const int Size = 2 * sizeof(int);
+            public FrameHeader(int totalSize, int frameSize)
             {
-                return (TotalSize * 397) ^ FrameSize;
+                TotalSize = totalSize;
+                FrameSize = frameSize;
             }
+
+            public int TotalSize { get; }
+
+            public int FrameSize { get; }
+
+            public int PayloadSize => TotalSize - FrameSize;
+
+            //TODO:  Avoid mem allocation here
+            public static FrameHeader FromSpan(ReadOnlySpan<byte> span)
+            {
+                return MemoryMarshal.Read<FrameHeader>(span);
+                //return ref new FrameHeader(0,0);
+
+            }
+
+            //TODO: Optimize ToSpan 
+            public static void ToSpan(Span<byte> destination, ref FrameHeader frameHeader)
+            {
+                MemoryMarshal.Write(destination, ref frameHeader);
+            }
+
+            #region Equality 
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    return (TotalSize * 397) ^ FrameSize;
+                }
+            }
+
+            public bool Equals(FrameHeader other) => TotalSize == other.TotalSize && FrameSize == other.FrameSize;
+
+            public override bool Equals(object? obj) => obj is FrameHeader other && Equals(other);
+
+            public static bool operator ==(FrameHeader left, FrameHeader right) => left.Equals(right);
+
+            public static bool operator !=(FrameHeader left, FrameHeader right) => !left.Equals(right);
+
+            #endregion
+
+            public override string ToString() => $"[{nameof(TotalSize)} = {TotalSize}],[{nameof(FrameSize)} ={FrameSize}],[{nameof(PayloadSize)} ={PayloadSize}]";
         }
-
-        public bool Equals(FrameHeader other) => TotalSize == other.TotalSize && FrameSize == other.FrameSize;
-
-        public override bool Equals(object? obj) => obj is FrameHeader other && Equals(other);
-
-        public static bool operator ==(FrameHeader left, FrameHeader right) => left.Equals(right);
-
-        public static bool operator !=(FrameHeader left, FrameHeader right) => !left.Equals(right);
-
-        #endregion
-
-        public override string ToString() => $"[{nameof(TotalSize)} = {TotalSize}],[{nameof(FrameSize)} ={FrameSize}],[{nameof(PayloadSize)} ={PayloadSize}]";
     }
 }
