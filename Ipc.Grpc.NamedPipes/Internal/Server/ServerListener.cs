@@ -29,7 +29,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _connectionsTasks = new List<Task>();
         }
 
-        public void Start(int poolSize = 4) //Non blocking start
+        public void Start(int poolSize = 100)
         {
             CheckIfDisposed();
             if (_started == false)
@@ -39,10 +39,10 @@ namespace Ipc.Grpc.NamedPipes.Internal
                     //var thread = new Thread(ListenConnectionsAsync);
                     //thread.Start();
 
-                    Task task = ListenConnectionsAsync();
+                    Task task = Task.Factory.StartNew(async () => await ListenConnectionsAsync());
                     _listenerTasks.Add(task);
                 }
-
+                Task.WaitAll(_listenerTasks.ToArray());
                 _started = true;
             }
         }
