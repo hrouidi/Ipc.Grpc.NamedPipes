@@ -15,7 +15,7 @@ namespace Ipc.Grpc.NamedPipes.Tests;
 public class NamedPipeTransportTests
 {
     [Test]
-    public void Debug()
+    public void FrameHeader_Tests()
     {
         Span<byte> layout = stackalloc byte[8];
         Span<byte> layout2 = stackalloc byte[8];
