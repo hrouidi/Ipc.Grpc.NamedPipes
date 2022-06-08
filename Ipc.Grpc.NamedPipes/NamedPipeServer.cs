@@ -8,14 +8,14 @@ namespace Ipc.Grpc.NamedPipes
 {
     public class NamedPipeServer : IDisposable
     {
-        private readonly ServerStreamPool _pool;
+        private readonly ServerListener _pool;
         private readonly Dictionary<string, Func<ServerConnectionContext, ValueTask>> _methodHandlers = new();
 
         public NamedPipeServer(string pipeName) : this(pipeName, NamedPipeServerOptions.Default) { }
 
         public NamedPipeServer(string pipeName, NamedPipeServerOptions options)
         {
-            _pool = new ServerStreamPool(pipeName, options, _methodHandlers);
+            _pool = new ServerListener(pipeName, options, _methodHandlers);
             ServiceBinder = new ServiceBinderImpl(this);
         }
 

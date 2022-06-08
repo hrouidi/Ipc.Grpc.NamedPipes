@@ -114,23 +114,24 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public void Dispose()
         {
-            PipeStream?.Dispose();
+            try
+            {
+                PipeStream.Disconnect();
+                PipeStream.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error : {ex.Message}");
+            }
         }
 
         #region Houssam
 
-        public async Task ReadLoop()
+        public async Task ListenMessagesAsync(CancellationToken shutdownToken)
         {
-            try
+            while (PipeStream.IsConnected && shutdownToken.IsCancellationRequested == false)
             {
-                while (PipeStream.IsConnected)
-                {
-                    await Transport.ReadClientMessages(this).ConfigureAwait(false);
-                }
-            }
-            catch (Exception)
-            {
-                // TODO: Log if unexpected
+                await Transport.ReadClientMessages(this).ConfigureAwait(false);
             }
         }
 

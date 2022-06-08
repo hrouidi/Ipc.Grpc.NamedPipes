@@ -6,93 +6,62 @@ using System.Threading.Tasks;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
-    internal class ServerStreamPool : IDisposable
+    internal class ServerListener : IDisposable
     {
-        private const int PoolSize = 4;
-
         private readonly string _pipeName;
-        private readonly CancellationTokenSource _cts;
+        private readonly CancellationTokenSource _shutdownCancellationTokenSource;
         private readonly NamedPipeServerOptions _options;
-        private readonly List<Task> _runningTasks;
+        private readonly List<Task> _listenerTasks;
+        private readonly List<Task> _connectionsTasks;
 
         private readonly IReadOnlyDictionary<string, Func<ServerConnectionContext, ValueTask>> _methodHandlers;
 
         private volatile bool _started;
-        private volatile bool _stoped;
         private volatile bool _disposed;
 
-        public ServerStreamPool(string pipeName, NamedPipeServerOptions options, IReadOnlyDictionary<string, Func<ServerConnectionContext, ValueTask>> methodHandlers)
+        public ServerListener(string pipeName, NamedPipeServerOptions options, IReadOnlyDictionary<string, Func<ServerConnectionContext, ValueTask>> methodHandlers)
         {
             _pipeName = pipeName;
             _options = options;
             _methodHandlers = methodHandlers;
-            _cts = new CancellationTokenSource();
-            _runningTasks = new List<Task>();
+            _shutdownCancellationTokenSource = new CancellationTokenSource();
+            _listenerTasks = new List<Task>();
+            _connectionsTasks = new List<Task>();
         }
 
-        public void Start()
+        public void Start(int poolSize = 4) //Non blocking start
         {
             CheckIfDisposed();
             if (_started == false)
             {
-                for (int i = 0; i < PoolSize; i++)
+                for (int i = 0; i < poolSize; i++)
                 {
-                    //var thread = new Thread(ConnectionLoop);
+                    //var thread = new Thread(ListenConnectionsAsync);
                     //thread.Start();
-                    Task task = Task.Factory.StartNew(ListenConnectionsAsync, TaskCreationOptions.LongRunning);
-                    _runningTasks.Add(task);
+
+                    Task task = ListenConnectionsAsync();
+                    _listenerTasks.Add(task);
                 }
 
                 _started = true;
             }
         }
 
-        public async Task StartAsync()
+        public void Stop()//Blocking stop
         {
             CheckIfDisposed();
-            if (_started == false)
+            if (_started)
             {
-                List<Task> runningTasks = new List<Task>(PoolSize);
-                for (int i = 0; i < PoolSize; i++)
-                {
-                    Task task = Task.Factory.StartNew(ListenConnectionsAsync, TaskCreationOptions.LongRunning);
-                    runningTasks.Add(task);
-                }
-
-                await Task.WhenAll(runningTasks.ToArray()).ConfigureAwait(false);
-                _started = true;
+                _started = false;
+                _shutdownCancellationTokenSource.Cancel();
+                Task.WaitAll(_listenerTasks.ToArray());
             }
-        }
-
-        //TODO : Fix this
-        public void Stop()
-        {
-            CheckIfDisposed();
-            _stoped = true;
-            _cts.Cancel();
-            Task.WaitAll(_runningTasks.ToArray());
-        }
-        //TODO : Fix this
-        public Task StopAsync()
-        {
-            CheckIfDisposed();
-            _stoped = true;
-            _cts.Cancel();
-            return Task.WhenAll(_runningTasks.ToArray());
         }
 
         public void Dispose()
         {
             _disposed = true;
-            try
-            {
-                _cts.Cancel();
-                //_cts.Dispose();
-            }
-            catch (Exception)
-            {
-                // TODO: Log
-            }
+            _shutdownCancellationTokenSource.Cancel();
         }
 
         private NamedPipeServerStream CreatePipeServer()
@@ -142,34 +111,39 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 NamedPipeServerStream pipeServer = CreatePipeServer();
                 try
                 {
-                    await pipeServer.WaitForConnectionAsync(_cts.Token).ConfigureAwait(false);
-                    var ctx = new ServerConnectionContext(pipeServer, _methodHandlers);
-                    //TODO: push to threadPool
-                    await ctx.ReadLoop().ConfigureAwait(false);
-
-                    pipeServer.Disconnect();
+                    await pipeServer.WaitForConnectionAsync(_shutdownCancellationTokenSource.Token).ConfigureAwait(false);
+                    _ = HandleConnectionAsync(pipeServer);
                 }
-                catch (Exception)
-                {
-                    if (_cts.IsCancellationRequested)
-                    {
-                        break;
-                    }
-                }
-                finally
+                catch (Exception ex)
                 {
                     pipeServer.Dispose();
+                    if (_shutdownCancellationTokenSource.IsCancellationRequested)
+                        break;
+                    Console.WriteLine($"Error: {ex.Message}");
+                    throw;
                 }
             }
         }
 
-        //private 
+        private async Task HandleConnectionAsync(NamedPipeServerStream pipeServer)
+        {
+            await Task.Yield();
+            try
+            {
+                using var ctx = new ServerConnectionContext(pipeServer, _methodHandlers);
+                await ctx.ListenMessagesAsync(_shutdownCancellationTokenSource.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        }
 
         private void CheckIfDisposed()
         {
             const string msg = "The server has been killed and can't be restarted. Create a new server if needed.";
             if (_disposed)
-                throw new ObjectDisposedException(nameof(ServerStreamPool), msg);
+                throw new ObjectDisposedException(nameof(ServerListener), msg);
         }
     }
 }
