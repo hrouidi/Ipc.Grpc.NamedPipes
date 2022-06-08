@@ -12,25 +12,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
 {
     public class UnaryAsyncPerformanceTest
     {
-
-        [Test]
-        [TestCaseSource(typeof(MultiChannelSource))]
-        public async Task Channels_Parallel_Performance(ChannelContextFactory factory)
-        {
-            using var ctx = factory.Create();
-            var stopwatch = Stopwatch.StartNew();
-            var tasks = new Task[24];
-            for (int i = 0; i < tasks.Length; i++)
-            {
-                var client = factory.CreateClient();
-                tasks[i] = client.SimpleUnaryAsync(new RequestMessage()).ResponseAsync;
-            }
-
-            await Task.WhenAll(tasks);
-            stopwatch.Stop();
-            Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
-        }
-
+        
         [Test]
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task Channels_Sequential_Performance(ChannelContextFactory factory)
@@ -67,11 +49,30 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
 
         [Test]
         [TestCaseSource(typeof(MultiChannelSource))]
+
+        public async Task Channels_Parallel_Performance(ChannelContextFactory factory)
+        {
+            using var ctx = factory.Create();
+            var stopwatch = Stopwatch.StartNew();
+            var tasks = new Task[100];
+            for (int i = 0; i < tasks.Length; i++)
+            {
+                var client = factory.CreateClient();
+                tasks[i] = client.SimpleUnaryAsync(new RequestMessage()).ResponseAsync;
+            }
+
+            await Task.WhenAll(tasks);
+            stopwatch.Stop();
+            Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
+        }
+
+        [Test]
+        [TestCaseSource(typeof(MultiChannelSource))]
         public async Task Calls_Parallel_Performance(ChannelContextFactory factory)
         {
             using var ctx = factory.Create();
             var stopwatch = Stopwatch.StartNew();
-            var tasks = new Task[24];
+            var tasks = new Task[100];
             for (int i = 0; i < tasks.Length; i++)
             {
                 tasks[i] = ctx.Client.SimpleUnaryAsync(new RequestMessage()).ResponseAsync;
@@ -94,7 +95,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
             var stopwatch = Stopwatch.StartNew();
             ResponseMessage ret = await ctx.Client.SimpleUnaryAsync(new RequestMessage { Binary = byteString });
             stopwatch.Stop();
-            Assert.AreEqual(byteString, ret.Binary);
+            Assert.That(ret.Binary, Is.EqualTo(byteString));
             Console.WriteLine($" Elapsed :{stopwatch.Elapsed}");
         }
 

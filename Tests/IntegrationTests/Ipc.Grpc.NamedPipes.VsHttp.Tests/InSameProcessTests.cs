@@ -157,16 +157,16 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
 
         [Test,Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
-        public async Task CancelClientStreamingBeforeCall(ChannelContextFactory factory)
+        public Task CancelClientStreamingBeforeCall(ChannelContextFactory factory)
         {
             using var ctx = factory.Create();
             var cts = new CancellationTokenSource();
             cts.Cancel();
             var call = ctx.Client.ClientStreaming(cancellationToken: cts.Token);
-            Assert.ThrowsAsync<TaskCanceledException>(async () =>
-                await call.RequestStream.WriteAsync(new RequestMessage {Value = 1}));
+            Assert.ThrowsAsync<TaskCanceledException>(async () => await call.RequestStream.WriteAsync(new RequestMessage {Value = 1}));
             var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseAsync);
             Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Cancelled));
+            return Task.CompletedTask;
         }
 
         [Test,Timeout(TestTimeout)]

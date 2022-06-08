@@ -50,10 +50,14 @@ namespace Ipc.Grpc.NamedPipes
         public override TResponse BlockingUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method,
             string host, CallOptions callOptions, TRequest request)
         {
-            var ctx = CreateConnectionContext(method, callOptions, request);
-            ctx.Init();
-            return ctx.ReadUnaryResponseAsync(method.ResponseMarshaller)
-                .Result;
+            //var ctx = CreateConnectionContext(method, callOptions, request);
+            //ctx.Init();
+            //return ctx.ReadUnaryResponseAsync(method.ResponseMarshaller)
+            //    .Result;
+
+            NamedPipeClientStream stream = CreatePipeStream();
+            var ctx = new AsyncUnaryCallContext<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, request);
+            return ctx.GetResponseAsync().Result;
         }
 
         public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string host, CallOptions callOptions, TRequest request)

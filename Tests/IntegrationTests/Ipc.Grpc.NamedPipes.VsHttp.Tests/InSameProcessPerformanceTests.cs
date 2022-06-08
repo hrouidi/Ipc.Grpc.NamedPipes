@@ -12,8 +12,8 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
 {
     public class InSameProcessPerformanceTests
     {
-        private const int TestTimeout = 5000;
-        [Test,Timeout(TestTimeout)]
+        private const int TestTimeout = 10*1000;
+        [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task ServerStreamingManyMessagesPerformance(ChannelContextFactory factory)
         {
@@ -28,7 +28,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
             Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
         }
 
-        [Test,Timeout(TestTimeout)]
+        [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
         public void UnarySequentialChannelsPerformance(ChannelContextFactory factory)
         {
@@ -44,7 +44,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
             Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
         }
 
-        [Test,Timeout(TestTimeout)]
+        [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task UnaryParallelChannelsPerformance(ChannelContextFactory factory)
         {
@@ -62,7 +62,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
             Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
         }
 
-        [Test,Timeout(TestTimeout)]
+        [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
         public void UnarySequentialCallsPerformance(ChannelContextFactory factory)
         {
@@ -77,7 +77,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
             Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
         }
 
-        [Test,Timeout(TestTimeout)]
+        [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task UnaryAsyncSequentialCallsPerformance(ChannelContextFactory factory)
         {
@@ -92,7 +92,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
             Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
         }
 
-        [Test,Timeout(TestTimeout)]
+        [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task UnaryParallelCallsPerformance(ChannelContextFactory factory)
         {
@@ -109,7 +109,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
             Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
         }
 
-        [Test,Timeout(TestTimeout)]
+        [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
         public void UnaryLargePayloadPerformance(ChannelContextFactory factory)
         {
@@ -123,26 +123,26 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
             Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
         }
 
-        [Test,Timeout(TestTimeout)]
+        [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
-        public void ChannelColdStartPerformance(ChannelContextFactory factory)
+        public async Task ChannelColdStartPerformance(ChannelContextFactory factory)
         {
             // Note: This test needs to be run on its own for accurate cold start measurements.
             var stopwatch = Stopwatch.StartNew();
             using var ctx = factory.Create();
-            ctx.Client.SimpleUnary(new RequestMessage());
+            await ctx.Client.SimpleUnaryAsync(new RequestMessage());
             stopwatch.Stop();
             Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
         }
 
-        [Test,Timeout(TestTimeout)]
+        [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
-        public void ChannelWarmStartPerformance(ChannelContextFactory factory)
+        public async Task ChannelWarmStartPerformance(ChannelContextFactory factory)
         {
             using var tempChannel = factory.Create();
             var stopwatch = Stopwatch.StartNew();
             using var ctx = factory.Create();
-            ctx.Client.SimpleUnary(new RequestMessage());
+            await ctx.Client.SimpleUnaryAsync(new RequestMessage());
             stopwatch.Stop();
             Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
         }

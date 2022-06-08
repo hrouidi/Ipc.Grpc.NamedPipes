@@ -39,7 +39,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 {
                     //var thread = new Thread(ConnectionLoop);
                     //thread.Start();
-                    Task task = Task.Factory.StartNew(HandleConnectionAsync, TaskCreationOptions.LongRunning);
+                    Task task = Task.Factory.StartNew(ListenConnectionsAsync, TaskCreationOptions.LongRunning);
                     _runningTasks.Add(task);
                 }
 
@@ -55,7 +55,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 List<Task> runningTasks = new List<Task>(PoolSize);
                 for (int i = 0; i < PoolSize; i++)
                 {
-                    Task task = Task.Factory.StartNew(HandleConnectionAsync, TaskCreationOptions.LongRunning);
+                    Task task = Task.Factory.StartNew(ListenConnectionsAsync, TaskCreationOptions.LongRunning);
                     runningTasks.Add(task);
                 }
 
@@ -135,7 +135,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 #endif
         }
 
-        private async void HandleConnectionAsync()
+        private async Task ListenConnectionsAsync()
         {
             while (true)
             {
@@ -144,6 +144,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 {
                     await pipeServer.WaitForConnectionAsync(_cts.Token).ConfigureAwait(false);
                     var ctx = new ServerConnectionContext(pipeServer, _methodHandlers);
+                    //TODO: push to threadPool
                     await ctx.ReadLoop().ConfigureAwait(false);
 
                     pipeServer.Disconnect();
@@ -161,6 +162,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 }
             }
         }
+
+        //private 
 
         private void CheckIfDisposed()
         {
