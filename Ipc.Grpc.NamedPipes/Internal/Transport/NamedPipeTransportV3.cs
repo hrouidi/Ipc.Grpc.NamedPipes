@@ -57,7 +57,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             using MemorySerializationContext serializationContext = new(frame.Message);
             frame.Serializer(frame.Payload, serializationContext);
-            
+
             Memory<byte> bytes = serializationContext.Bytes;
 
             Memory<byte> headerBytes = bytes.Slice(0, FrameHeader.Size);
@@ -75,7 +75,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         internal readonly struct FrameHeader : IEquatable<FrameHeader>
         {
             public const int Size = 2 * sizeof(int);
-            
+
             public FrameHeader(int totalSize, int messageSize)
             {
                 TotalSize = totalSize;
@@ -121,67 +121,63 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
             public override string ToString() => $"[{nameof(TotalSize)} = {TotalSize}],[{nameof(MessageSize)} ={MessageSize}],[{nameof(PayloadSize)} ={PayloadSize}]";
         }
+    }
 
-        public readonly struct FrameInfo<TPayload> : IEquatable<FrameInfo<TPayload>>//where TPayload : class 
+    internal readonly struct FrameInfo<TPayload> : IEquatable<FrameInfo<TPayload>>//where TPayload : class 
+    {
+        public Action<TPayload, SerializationContext> Serializer { get; }
+
+        public Message Message { get; }
+
+        public TPayload Payload { get; }
+
+        public FrameInfo(Message message, TPayload payload, Action<TPayload, SerializationContext> payloadContextualSerializer)
         {
-            public Action<TPayload, SerializationContext> Serializer { get; }
-
-            public Message Message { get; }
-
-            public TPayload Payload { get; }
-
-            public FrameInfo(Message message, TPayload payload, Action<TPayload, SerializationContext> payloadContextualSerializer)
-            {
-                Message = message;
-                Payload = payload;
-                Serializer = payloadContextualSerializer;
-            }
-
-            #region Equality semantic
-            public bool Equals(FrameInfo<TPayload> other)
-            {
-                return Serializer.Equals(other.Serializer) && 
-                       Message.Equals(other.Message) && 
-                       EqualityComparer<TPayload>.Default.Equals(Payload, other.Payload);
-            }
-
-            public override bool Equals(object? obj) => obj is FrameInfo<TPayload> other && Equals(other);
-
-            public override int GetHashCode() => (Serializer, Frame: Message, Payload).GetHashCode();
-
-            public static bool operator ==(FrameInfo<TPayload> left, FrameInfo<TPayload> right) => left.Equals(right);
-
-            public static bool operator !=(FrameInfo<TPayload> left, FrameInfo<TPayload> right) => !left.Equals(right);
-
-            #endregion
+            Message = message;
+            Payload = payload;
+            Serializer = payloadContextualSerializer;
         }
 
-        public sealed class Frame : IDisposable//where TPayload : class 
+        #region Equality semantic
+        public bool Equals(FrameInfo<TPayload> other)
         {
-            private readonly IMemoryOwner<byte> _memoryOwner;
-            private readonly Memory<byte> _payloadBytes;
-
-            public Message Message { get; }
-
-            public TPayload GetPayload<TPayload>(Func<DeserializationContext, TPayload> deserializer)
-            {
-                var deserializationContext = new MemoryDeserializationContext(_payloadBytes);
-                TPayload ret = deserializer(deserializationContext);
-                return ret;
-            }
-
-            public Frame(Message message, Memory<byte> payloadBytes, IMemoryOwner<byte> memoryOwner)
-            {
-                Message = message;
-                _memoryOwner = memoryOwner;
-                _payloadBytes = payloadBytes;
-
-            }
-
-            public void Dispose()
-            {
-                _memoryOwner?.Dispose();
-            }
+            return Serializer.Equals(other.Serializer) &&
+                   Message.Equals(other.Message) &&
+                   EqualityComparer<TPayload>.Default.Equals(Payload, other.Payload);
         }
+
+        public override bool Equals(object? obj) => obj is FrameInfo<TPayload> other && Equals(other);
+
+        public override int GetHashCode() => (Serializer, Frame: Message, Payload).GetHashCode();
+
+        public static bool operator ==(FrameInfo<TPayload> left, FrameInfo<TPayload> right) => left.Equals(right);
+
+        public static bool operator !=(FrameInfo<TPayload> left, FrameInfo<TPayload> right) => !left.Equals(right);
+
+        #endregion
+    }
+
+    internal sealed class Frame : IDisposable//where TPayload : class 
+    {
+        private readonly IMemoryOwner<byte> _memoryOwner;
+        private readonly Memory<byte> _payloadBytes;
+
+        public Message Message { get; }
+
+        public TPayload GetPayload<TPayload>(Func<DeserializationContext, TPayload> deserializer)
+        {
+            var deserializationContext = new MemoryDeserializationContext(_payloadBytes);
+            TPayload ret = deserializer(deserializationContext);
+            return ret;
+        }
+
+        public Frame(Message message, Memory<byte> payloadBytes, IMemoryOwner<byte> memoryOwner)
+        {
+            Message = message;
+            _memoryOwner = memoryOwner;
+            _payloadBytes = payloadBytes;
+        }
+
+        public void Dispose() => _memoryOwner?.Dispose();
     }
 }
