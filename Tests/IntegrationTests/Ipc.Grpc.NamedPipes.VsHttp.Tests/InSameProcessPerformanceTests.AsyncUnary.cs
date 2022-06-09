@@ -12,7 +12,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
 {
     public class UnaryAsyncPerformanceTest
     {
-        
+
         [Test]
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task Channels_Sequential_Performance(ChannelContextFactory factory)
@@ -40,7 +40,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
             var stopwatch = Stopwatch.StartNew();
             for (int i = 0; i < 1_0000; i++)
             {
-                ResponseMessage rep = await ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 123});
+                ResponseMessage rep = await ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 123 });
             }
 
             stopwatch.Stop();
@@ -88,16 +88,17 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
         //[TestCaseSource(typeof(NamedPipeClassData2))]
         public async Task LargePayloadPerformance(ChannelContextFactory factory)
         {
-            using var ctx = factory.Create();
-            
-            var bytes = new byte[200 * 1024 * 1024];
+            using ChannelContext ctx = factory.Create();
+
+            var bytes = new byte[ 1024 * 1024];
             ByteString byteString = ByteString.CopyFrom(bytes);
+            ResponseMessage ret = null;
             var stopwatch = Stopwatch.StartNew();
-            ResponseMessage ret = await ctx.Client.SimpleUnaryAsync(new RequestMessage { Binary = byteString });
+            for (int i = 0; i < 1000; i++)
+                ret = await ctx.Client.SimpleUnaryAsync(new RequestMessage { Binary = byteString });
             stopwatch.Stop();
             Assert.That(ret.Binary, Is.EqualTo(byteString));
             Console.WriteLine($" Elapsed :{stopwatch.Elapsed}");
         }
-
     }
 }

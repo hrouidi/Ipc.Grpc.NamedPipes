@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Buffers;
 using System.IO;
 using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
 using Ipc.Grpc.NamedPipes.Protocol;
+using Ipc.Grpc.NamedPipes.TransportProtocol;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
@@ -47,12 +49,12 @@ namespace Ipc.Grpc.NamedPipes.Internal
                                  .ConfigureAwait(false);
                 //_pipeStream.ConnectAsync(_connectionTimeout);
                 _pipeStream.ReadMode = PipeTransmissionMode.Message;
-                await _transport.SendUnaryRequest(_method, _request, _callOptions.Deadline, _callOptions.Headers, combined.Token)
+                await _transport.SendUnaryRequest2(_method, _request, _callOptions.Deadline, _callOptions.Headers, combined.Token)
                                 .ConfigureAwait(false);
                 _cancelReg = _callOptions.CancellationToken.Register(DisposeCall);
-                using MemoryStream payloadStream = await ReadResponsePayload(combined.Token)
+                TResponse ret = await ReadResponsePayload(combined.Token)
                                                         .ConfigureAwait(false);
-                return SerializationHelpers.Deserialize(_method.ResponseMarshaller, payloadStream);
+                return ret;
             }
             catch (Exception ex)
             {
@@ -74,6 +76,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             finally
             {
                 _pipeStream.Dispose();
+                _transport.Dispose();
             }
         }
 
@@ -96,17 +99,18 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
         }
 
-        private async Task<MemoryStream> ReadResponsePayload(CancellationToken token)
+        private async Task<TResponse> ReadResponsePayload(CancellationToken token)
         {
             while (_pipeStream.IsConnected && token.IsCancellationRequested == false)
             {
-                ServerResponse rep = await _transport.ReadServerMessagesAsync(token)
-                                                     .ConfigureAwait(false);
-                switch (rep.Type)
+                (Frame frame, Memory<byte>? payloadBytes, IMemoryOwner<byte> owner) = await _transport.ReadFrame3(token)
+                                                                                                    .ConfigureAwait(false);
+                switch (frame.DataCase)
                 {
-                    case ServerMessage.DataOneofCase.Response:
-                        var trailers = TransportMessageBuilder.ToMetadata(rep.Response.Trailers.Metadata);
-                        var status = new Status((StatusCode)rep.Response.Trailers.StatusCode, rep.Response.Trailers.StatusDetail);
+                    case Frame.DataOneofCase.Response:
+                        //var trailers = TransportMessageBuilder.ToMetadata(frame.Response.Trailers.Metadata);
+                        var trailers =new  Metadata();
+                        var status = new Status((StatusCode)frame.Response.Trailers.StatusCode, frame.Response.Trailers.StatusDetail);
 
                         EnsureResponseHeadersSet();
                         _responseTrailers = trailers ?? new Metadata();
@@ -115,13 +119,17 @@ namespace Ipc.Grpc.NamedPipes.Internal
                         _pipeStream.Close();
 
                         if (status.StatusCode == StatusCode.OK)
-                            return rep.Payload;
+                        {
+                            var deserializationContext = new MemoryDeserializationContext(payloadBytes.Value);
+                            TResponse ret = _method.ResponseMarshaller.ContextualDeserializer(deserializationContext);
+                            return ret;
+                        }
 
                         throw new RpcException(status);
-                    case ServerMessage.DataOneofCase.ResponseHeaders:
-                        var headerMetadata = TransportMessageBuilder.ToMetadata(rep.Headers.Metadata);
-                        EnsureResponseHeadersSet(headerMetadata);
-                        break;
+                    case Frame.DataOneofCase.ResponseHeaders:
+                        //var headerMetadata = TransportMessageBuilder.ToMetadata(rep.Headers.Metadata);
+                        //EnsureResponseHeadersSet(headerMetadata);
+                        throw new ArgumentOutOfRangeException();
                     default:
                         throw new ArgumentOutOfRangeException();
                 }

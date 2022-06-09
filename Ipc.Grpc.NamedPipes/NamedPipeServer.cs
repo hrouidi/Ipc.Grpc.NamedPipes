@@ -56,7 +56,7 @@ namespace Ipc.Grpc.NamedPipes
                 {
                     try
                     {
-                        TRequest request = ctx.GetUnaryRequest(method.RequestMarshaller);
+                        TRequest request = ctx.GetUnaryRequest2(method.RequestMarshaller);
                         TResponse response = await handler(request, ctx.CallContext).ConfigureAwait(false);
                         await ctx.UnarySuccess(method.ResponseMarshaller, response).ConfigureAwait(false);
                     }

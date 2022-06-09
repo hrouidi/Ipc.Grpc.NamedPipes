@@ -1,6 +1,7 @@
 ﻿
 using System.IO;
 using Grpc.Core;
+using Ipc.Grpc.NamedPipes.TransportProtocol;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
@@ -29,6 +30,12 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             var deserializationContext = new StreamDeserializationContext(stream);
             return marshaller.ContextualDeserializer(deserializationContext);
+        }
+
+        public static void Serialize<TPayload>(Frame frame, Marshaller<TPayload> marshaller, TPayload message)
+        {
+            var serializationContext = new MemorySerializationContext(frame);
+            marshaller.ContextualSerializer(message, serializationContext);
         }
     }
 }

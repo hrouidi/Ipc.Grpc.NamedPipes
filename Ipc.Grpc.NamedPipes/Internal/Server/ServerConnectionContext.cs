@@ -1,11 +1,13 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
-using Ipc.Grpc.NamedPipes.Protocol;
+using Ipc.Grpc.NamedPipes.TransportProtocol;
+using Request = Ipc.Grpc.NamedPipes.Protocol.Request;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
@@ -22,6 +24,20 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _methodHandlers = methodHandlers;
             _payloadChannel = new PayloadChannel<byte[]>();
             CancellationTokenSource = new CancellationTokenSource();
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                PipeStream.Disconnect();
+                PipeStream.Dispose();
+                Transport.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error : {ex.Message}");
+            }
         }
 
         public NamedPipeServerStream PipeStream { get; }
@@ -80,7 +96,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             Transport.SendResponse(responsePayload, CallContext.ResponseTrailers, status, detail);
         }
 
-        public ValueTask UnarySuccess<T>(Marshaller<T> marshaller, T response)
+        public async ValueTask UnarySuccess<T>(Marshaller<T> marshaller, T response)
         {
             IsCompleted = true;
             (StatusCode status, string detail) = CallContext.Status.StatusCode switch
@@ -88,15 +104,21 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 StatusCode.OK => (StatusCode.OK, ""),
                 _ => (CallContext.Status.StatusCode, CallContext.Status.Detail)
             };
-            return Transport.SendUnaryResponse(marshaller, response, CallContext.ResponseTrailers, status, detail, CallContext.CancellationToken);
+            await Transport.SendUnaryResponse(marshaller, response, CallContext.ResponseTrailers, status, detail, CallContext.CancellationToken)
+                           .ConfigureAwait(false);
+            // Stop listening
+            _continueListening = false;
         }
 
-        public ValueTask UnaryError(Exception ex)
+        private bool _continueListening = true;
+        public async ValueTask UnaryError(Exception ex)
         {
             IsCompleted = true;
             (StatusCode status, string detail) = GetStatus();
-            return Transport.SendUnaryResponse(CallContext.ResponseTrailers, status, detail, CallContext.CancellationToken);
-
+            await Transport.SendUnaryResponse(CallContext.ResponseTrailers, status, detail, CallContext.CancellationToken)
+                           .ConfigureAwait(false);
+            // Stop listening
+            _continueListening = false;
             (StatusCode status, string detail) GetStatus()
             {
                 if (Deadline is { IsExpired: true })
@@ -112,24 +134,13 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
         }
 
-        public void Dispose()
-        {
-            try
-            {
-                PipeStream.Disconnect();
-                PipeStream.Dispose();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error : {ex.Message}");
-            }
-        }
+       
 
         #region Houssam
 
         public async Task ListenMessagesAsync(CancellationToken shutdownToken)
         {
-            while (PipeStream.IsConnected && shutdownToken.IsCancellationRequested == false)
+            while (_continueListening && PipeStream.IsConnected && shutdownToken.IsCancellationRequested == false)
             {
                 await Transport.ReadClientMessages(this).ConfigureAwait(false);
             }
@@ -149,14 +160,30 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         private MemoryStream _payloadStream;
 
+        private Memory<byte> _payloadStream2;
+        private IMemoryOwner<byte> _owner;
+
         public async ValueTask HandleUnaryRequest(Request message, MemoryStream payload)
         {
             _request = message;
             _payloadStream = payload;
+
             Deadline = new Deadline(message.Deadline?.ToDateTime());
             RequestHeaders = TransportMessageBuilder.ToMetadata(message.Headers.Metadata);
             //Task.Run(async () => await _methodHandlers[message.MethodFullName](this).ConfigureAwait(false));
             await _methodHandlers[message.MethodFullName](this).ConfigureAwait(false);
+        }
+
+        public async ValueTask HandleUnaryRequest2(TransportProtocol.Request message, Memory<byte> payload, IMemoryOwner<byte> owner)
+        {
+            //_request = message;
+            _payloadStream2 = payload;
+            _owner = owner;
+            Deadline = new Deadline(message.Deadline?.ToDateTime());
+            //RequestHeaders = TransportMessageBuilder.ToMetadata(message.Headers.Metadata);
+            //Task.Run(async () => await _methodHandlers[message.MethodFullName](this).ConfigureAwait(false));
+            Func<ServerConnectionContext, ValueTask> executor = _methodHandlers[message.MethodFullName];
+            await executor(this).ConfigureAwait(false);
         }
 
         public ValueTask HandleRequestStreamPayload(byte[] payload) => _payloadChannel.Append(payload);
@@ -180,6 +207,13 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             TRequest ret = SerializationHelpers.Deserialize(requestMarshaller, _payloadStream);
             _payloadStream.Dispose();
+            return ret;
+        }
+
+        public TRequest GetUnaryRequest2<TRequest>(Marshaller<TRequest> requestMarshaller)
+        {
+            var deserializationContext = new MemoryDeserializationContext(_payloadStream2);
+            TRequest ret = requestMarshaller.ContextualDeserializer(deserializationContext);
             return ret;
         }
 

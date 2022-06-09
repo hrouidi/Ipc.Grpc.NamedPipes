@@ -31,6 +31,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Ipc.Grpc.NamedPipes.VsHttp.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Ipc.Grpc.NamedPipes.Tests", "Tests\Ipc.Grpc.NamedPipes.Tests\Ipc.Grpc.NamedPipes.Tests.csproj", "{CDEC1245-CAA3-4923-81FA-9E33095916A9}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Ipc.Grpc.NamedPipes.VsBenchmarks", "Benchmarks\Ipc.Grpc.NamedPipes.VsBenchmarks\Ipc.Grpc.NamedPipes.VsBenchmarks.csproj", "{4EA3736A-AD45-42AE-8C19-41F4089EDFEB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -69,6 +71,10 @@ Global
 		{CDEC1245-CAA3-4923-81FA-9E33095916A9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CDEC1245-CAA3-4923-81FA-9E33095916A9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CDEC1245-CAA3-4923-81FA-9E33095916A9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4EA3736A-AD45-42AE-8C19-41F4089EDFEB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4EA3736A-AD45-42AE-8C19-41F4089EDFEB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4EA3736A-AD45-42AE-8C19-41F4089EDFEB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4EA3736A-AD45-42AE-8C19-41F4089EDFEB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -85,6 +91,7 @@ Global
 		{7E030205-8C93-4B82-8612-61BEF47D020B} = {02591100-4D84-4950-A0DE-41782F1A437D}
 		{A39129BD-8662-4E97-BAA8-6BBE32C610C2} = {0AC631BC-2C45-45BD-950C-2A0C89ED0541}
 		{CDEC1245-CAA3-4923-81FA-9E33095916A9} = {4260E770-9899-4EFD-9BDE-DF4018A65EF2}
+		{4EA3736A-AD45-42AE-8C19-41F4089EDFEB} = {62F96A29-D725-42BD-AC1E-25BD18A577AF}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3A45AE3B-232C-470F-92B0-52AA4E901903}

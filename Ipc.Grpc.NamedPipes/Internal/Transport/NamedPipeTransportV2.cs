@@ -8,6 +8,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
+using Grpc.Core;
 using Ipc.Grpc.NamedPipes.Internal.Helpers;
 
 using Ipc.Grpc.NamedPipes.TransportProtocol;
@@ -67,6 +68,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             Debug.Assert(readBytes == header.TotalSize - FrameHeader.Size, "Client is a layer !");
             Debug.Assert(_pipeStream.IsMessageComplete, "Unexpected message :too long!");
 
+            //MemoryStream ms =new()
             Frame? message = Frame.Parser.ParseFrom(framePlusPayloadBytes.Span.Slice(0, header.FrameSize));
             if (header.PayloadSize == 0)
             {
@@ -119,7 +121,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         public async ValueTask SendFrame3(Frame message, Func<Frame, (Memory<byte>, int)> messageSerializer, CancellationToken token = default)
         {
             //Serialize Frame message & payload if any
-            (Memory<byte> messageBytes,int frameSize) = messageSerializer.Invoke(message);
+            (Memory<byte> messageBytes, int frameSize) = messageSerializer.Invoke(message);
             Debug.Assert(messageBytes.Length >= frameSize + FrameHeader.Size);
             //Header to bytes
             //var header = new FrameHeader(messageBytes.Length, frameSize);
@@ -164,14 +166,14 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 MemoryMarshal.Write(destination, ref frameHeader);
             }
 
-            public static void ToSpan2(Span<byte> destination, int totalSize,int frameSize )
+            public static void ToSpan2(Span<byte> destination, int totalSize, int frameSize)
             {
                 FrameHeader header = new(totalSize, frameSize);
                 MemoryMarshal.Write(destination, ref header);
             }
             public static void ToSpan3(Span<byte> destination, int totalSize, int frameSize)
             {
-                long bytes = totalSize + ((long)frameSize<<32);
+                long bytes = totalSize + ((long)frameSize << 32);
                 MemoryMarshal.Write(destination, ref bytes);
             }
 
