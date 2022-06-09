@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,7 +20,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                              .ConfigureAwait(false);
         }
 
-        protected override ContextPropagationToken CreatePropagationTokenCore(ContextPropagationOptions options) => throw new NotSupportedException();
+        protected override ContextPropagationToken CreatePropagationTokenCore(ContextPropagationOptions? options) => throw new NotSupportedException();
 
         protected override string MethodCore => throw new NotSupportedException();
 
@@ -29,13 +30,13 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         protected override DateTime DeadlineCore => _connection.Deadline.Value;
 
-        protected override Metadata RequestHeadersCore => _connection.RequestHeaders;
+        protected override Metadata RequestHeadersCore => _connection.RequestHeaders ?? new Metadata();
 
         protected override Metadata ResponseTrailersCore { get; } = new Metadata();
 
         protected override Status StatusCore { get; set; }
 
-        protected override WriteOptions WriteOptionsCore { get; set; }
+        protected override WriteOptions? WriteOptionsCore { get; set; }
 
         protected override AuthContext AuthContextCore => throw new NotSupportedException();
     }

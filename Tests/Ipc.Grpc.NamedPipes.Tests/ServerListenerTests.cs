@@ -14,7 +14,7 @@ public class ServerListenerTests
     [Test]
     public void Start_Stop_Tests()
     {
-        using var pool = new ServerListener($"{Guid.NewGuid()}", NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnectionContext, ValueTask>>());
+        using var pool = new ServerListener($"{Guid.NewGuid()}", NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnection, ValueTask>>());
 
         pool.Start(1);
         pool.Stop();
@@ -28,18 +28,18 @@ public class ServerListenerTests
     [Test]
     public void Dispose_Tests()
     {
-        var pool = new ServerListener($"{Guid.NewGuid()}", NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnectionContext, ValueTask>>());
+        var pool = new ServerListener($"{Guid.NewGuid()}", NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnection, ValueTask>>());
         pool.Dispose();
         Assert.Throws<ObjectDisposedException>(() => pool.Start());
         Assert.Throws<ObjectDisposedException>(() => pool.Stop());
 
-        var pool2 = new ServerListener($"{Guid.NewGuid()}", NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnectionContext, ValueTask>>());
+        var pool2 = new ServerListener($"{Guid.NewGuid()}", NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnection, ValueTask>>());
         pool2.Start();
         pool2.Dispose();
         Assert.Throws<ObjectDisposedException>(() => pool2.Start());
         Assert.Throws<ObjectDisposedException>(() => pool2.Stop());
 
-        var pool3 = new ServerListener($"{Guid.NewGuid()}", NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnectionContext, ValueTask>>());
+        var pool3 = new ServerListener($"{Guid.NewGuid()}", NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnection, ValueTask>>());
         pool3.Start();
         pool3.Dispose();
         pool3.Dispose();
@@ -52,7 +52,7 @@ public class ServerListenerTests
     {
         var pipeName = $"{Guid.NewGuid()}";
 
-        using var pool = new ServerListener(pipeName, NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnectionContext, ValueTask>>());
+        using var pool = new ServerListener(pipeName, NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnection, ValueTask>>());
         pool.Start();
         //await Task.Delay(10);
 

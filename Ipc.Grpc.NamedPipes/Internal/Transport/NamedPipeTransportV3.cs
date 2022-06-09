@@ -53,6 +53,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public async ValueTask SendFrame<TPayload>(FrameInfo<TPayload> frame, CancellationToken token = default) where TPayload : class
         {
+            //TODO: manage case when payload is null
             using MemorySerializationContext serializationContext = new(frame.Message);
             frame.PayloadSerializer(frame.Payload, serializationContext);
 

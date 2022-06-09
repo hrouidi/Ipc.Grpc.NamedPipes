@@ -5,6 +5,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
 {
     internal class Deadline
     {
+        public static readonly Deadline None = new(null);
+
         private readonly DateTime? _deadline;
         private readonly CancellationTokenSource _cts;
 

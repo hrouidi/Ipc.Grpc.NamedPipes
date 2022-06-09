@@ -18,7 +18,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public CancellationTokenSource CancellationTokenSource { get; }
 
-        public Deadline? Deadline { get; private set; }
+        public Deadline Deadline { get; private set; }
 
         public Metadata? RequestHeaders { get; private set; }
 
@@ -36,6 +36,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _methodHandlers = methodHandlers;
             _payloadChannel = new PayloadChannel<byte[]>();
             CancellationTokenSource = new CancellationTokenSource();
+
+            Deadline = Deadline.None;
         }
 
         public void Dispose()
