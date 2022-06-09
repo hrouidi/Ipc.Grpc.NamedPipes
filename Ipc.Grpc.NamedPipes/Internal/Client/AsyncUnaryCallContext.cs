@@ -103,11 +103,11 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             while (_pipeStream.IsConnected && token.IsCancellationRequested == false)
             {
-                (Frame frame, Memory<byte>? payloadBytes, IMemoryOwner<byte> owner) = await _transport.ReadFrame3(token)
+                (Message frame, Memory<byte>? payloadBytes, IMemoryOwner<byte> owner) = await _transport.ReadFrame3(token)
                                                                                                     .ConfigureAwait(false);
                 switch (frame.DataCase)
                 {
-                    case Frame.DataOneofCase.Response:
+                    case Message.DataOneofCase.Response:
                         //var trailers = TransportMessageBuilder.ToMetadata(frame.Response.Trailers.Metadata);
                         var trailers =new  Metadata();
                         var status = new Status((StatusCode)frame.Response.Trailers.StatusCode, frame.Response.Trailers.StatusDetail);
@@ -126,7 +126,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                         }
 
                         throw new RpcException(status);
-                    case Frame.DataOneofCase.ResponseHeaders:
+                    case Message.DataOneofCase.ResponseHeaders:
                         //var headerMetadata = TransportMessageBuilder.ToMetadata(rep.Headers.Metadata);
                         //EnsureResponseHeadersSet(headerMetadata);
                         throw new ArgumentOutOfRangeException();

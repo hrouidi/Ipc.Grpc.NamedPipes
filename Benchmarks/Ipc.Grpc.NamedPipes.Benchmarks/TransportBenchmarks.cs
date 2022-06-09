@@ -23,7 +23,7 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
 
         private PipeChannel _channel;
         private byte[] _expectedRequestPayload;
-        private Frame _expectedRequest;
+        private Message _expectedRequest;
         private NamedPipeTransportV2 _clientTransport;
         private NamedPipeTransportV2 _serverTransport;
 
@@ -38,7 +38,7 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
         {
             _channel = PipeChannel.CreateRandom();
 
-            _expectedRequest = new Frame();
+            _expectedRequest = new Message();
 
             Random random = new();
             _expectedRequestPayload = new byte[100];
@@ -98,10 +98,10 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
         }
 
 
-        private (Memory<byte> MsgBytes, int frameSize) SerializeRequestPayload3(Frame frame)
+        private (Memory<byte> MsgBytes, int frameSize) SerializeRequestPayload3(Message message)
         {
             int padding = NamedPipeTransportV2.FrameHeader.Size;
-            int frameSize = frame.CalculateSize();
+            int frameSize = message.CalculateSize();
             //All
             var owner = MemoryPool<byte>.Shared.Rent(padding + frameSize + _expectedRequestPayload.Length);
             Memory<byte> messageBytes = owner.Memory.Slice(0, padding + frameSize + _expectedRequestPayload.Length);
@@ -109,7 +109,7 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
 
             //#2 : frame
             Memory<byte> frameBytes = messageBytes.Slice(padding, frameSize);
-            frame.WriteTo(frameBytes.Span);
+            message.WriteTo(frameBytes.Span);
             //#3 : payload
             Memory<byte> payLoadBytes = messageBytes.Slice(padding + frameSize);
             _expectedRequestPayload.AsMemory()
@@ -118,12 +118,12 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
             return (messageBytes, frameSize);
         }
 
-        private (Memory<byte>, int) SerializeRequestPayload2(Frame frame)
+        private (Memory<byte>, int) SerializeRequestPayload2(Message message)
         {
-            int frameSize = frame.CalculateSize();
+            int frameSize = message.CalculateSize();
             var owner = MemoryPool<byte>.Shared.Rent(frameSize + _expectedRequestPayload.Length);
             Memory<byte> messageBytes = owner.Memory.Slice(0, frameSize + _expectedRequestPayload.Length);
-            frame.WriteTo(messageBytes.Span.Slice(0, frameSize));
+            message.WriteTo(messageBytes.Span.Slice(0, frameSize));
 
             Memory<byte> payLoadBytes = messageBytes.Slice(frameSize);
             _expectedRequestPayload.AsMemory()

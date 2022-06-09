@@ -34,8 +34,8 @@ public class NamedPipeTransportTests
     {
         using var channel = PipeChannel.CreateRandom();
         Fixture fixture = new();
-        var expectedRequest = fixture.Create<Frame>();
-        var expectedResponse = fixture.Create<Frame>();
+        var expectedRequest = fixture.Create<Message>();
+        var expectedResponse = fixture.Create<Message>();
 
         Random random = new();
         byte[] expectedRequestPayload = new byte[100];
@@ -46,12 +46,12 @@ public class NamedPipeTransportTests
 
         var readRequestTask = serverTransport.ReadFrame();
         await clientTransport.SendFrame2(expectedRequest, SerializeRequestPayload);
-        (Frame actual, Memory<byte>? request) = await readRequestTask;
+        (Message actual, Memory<byte>? request) = await readRequestTask;
 
         Assert.That(actual, Is.EqualTo(expectedRequest));
         CollectionAssert.AreEqual(request?.ToArray(), expectedRequestPayload);
 
-        (Memory<byte>, int) SerializeRequestPayload(Frame frame)
+        (Memory<byte>, int) SerializeRequestPayload(Message frame)
         {
             int frameSize = frame.CalculateSize();
             var owner = MemoryPool<byte>.Shared.Rent(frameSize + expectedRequestPayload.Length);
@@ -72,8 +72,8 @@ public class NamedPipeTransportTests
         using var channel = PipeChannel.CreateRandom();
         
         Fixture fixture = new();
-        var expectedRequest = fixture.Create<Frame>();
-        var expectedResponse = fixture.Create<Frame>();
+        var expectedRequest = fixture.Create<Message>();
+        var expectedResponse = fixture.Create<Message>();
 
         Random random = new();
         byte[] expectedRequestPayload = new byte[100];
@@ -84,12 +84,12 @@ public class NamedPipeTransportTests
 
         var readRequestTask = serverTransport.ReadFrame3();
         await clientTransport.SendFrame3(expectedRequest, SerializeRequestPayload);
-        (Frame actual, Memory<byte>? request) = await readRequestTask;
+        (Message actual, Memory<byte>? request) = await readRequestTask;
 
         Assert.That(actual, Is.EqualTo(expectedRequest));
         CollectionAssert.AreEqual(request?.ToArray(), expectedRequestPayload);
 
-        (Memory<byte> MsgBytes, int frameSize) SerializeRequestPayload(Frame frame)
+        (Memory<byte> MsgBytes, int frameSize) SerializeRequestPayload(Message frame)
         {
             int padding = NamedPipeTransportV2.FrameHeader.Size;
             int frameSize = frame.CalculateSize();
@@ -116,8 +116,8 @@ public class NamedPipeTransportTests
         //Arrange
         using var channel = PipeChannel.CreateRandom();
         Fixture fixture = new();
-        var expectedRequest = fixture.Create<Frame>();
-        var expectedResponse = fixture.Create<Frame>();
+        var expectedRequest = fixture.Create<Message>();
+        var expectedResponse = fixture.Create<Message>();
 
         using var clientTransport = new NamedPipeTransportV2(channel.ClientStream);
         using var serverTransport = new NamedPipeTransportV2(channel.ServerStream);
@@ -125,14 +125,14 @@ public class NamedPipeTransportTests
         //Act
         var readRequestTask = serverTransport.ReadFrame();
         await clientTransport.SendFrame(expectedRequest, null);
-        (Frame actual, Memory<byte>? request) = await readRequestTask;
+        (Message actual, Memory<byte>? request) = await readRequestTask;
         //Assert
         Assert.That(actual, Is.EqualTo(expectedRequest));
         Assert.IsNull(request);
         //Act
         var readResponseTask = clientTransport.ReadFrame();
         await serverTransport.SendFrame(expectedResponse, null);
-        (Frame? serverMessage, Memory<byte>? response) = await readResponseTask;
+        (Message? serverMessage, Memory<byte>? response) = await readResponseTask;
         //Assert
         Assert.That(serverMessage, Is.EqualTo(expectedResponse));
         Assert.IsNull(response);
@@ -146,10 +146,10 @@ public class NamedPipeTransportTests
         using var channel = PipeChannel.CreateRandom();
         Random random = new();
         Fixture fixture = new();
-        var expectedRequest = fixture.Create<Frame>();
+        var expectedRequest = fixture.Create<Message>();
         byte[] expectedRequestPayload = new byte[100];
         random.NextBytes(expectedRequestPayload);
-        var expectedResponse = fixture.Create<Frame>();
+        var expectedResponse = fixture.Create<Message>();
         byte[] expectedResponsePayload = new byte[100];
         random.NextBytes(expectedResponsePayload);
 
@@ -159,14 +159,14 @@ public class NamedPipeTransportTests
         //Act
         var readRequestTask = serverTransport.ReadFrame();
         await clientTransport.SendFrame(expectedRequest, SerializeRequestPayload);
-        (Frame actual, Memory<byte>? request) = await readRequestTask;
+        (Message actual, Memory<byte>? request) = await readRequestTask;
         //Assert
         Assert.That(actual, Is.EqualTo(expectedRequest));
         CollectionAssert.AreEqual(request?.ToArray(), expectedRequestPayload);
         //Act
         var readResponseTask = clientTransport.ReadFrame();
         await serverTransport.SendFrame(expectedResponse, SerializeResponsePayload);
-        (Frame? serverMessage, Memory<byte>? response) = await readResponseTask;
+        (Message? serverMessage, Memory<byte>? response) = await readResponseTask;
         //Assert
         Assert.That(serverMessage, Is.EqualTo(expectedResponse));
         CollectionAssert.AreEqual(response?.ToArray(), expectedResponsePayload);

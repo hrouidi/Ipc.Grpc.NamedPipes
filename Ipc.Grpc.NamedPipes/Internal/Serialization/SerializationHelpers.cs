@@ -32,10 +32,10 @@ namespace Ipc.Grpc.NamedPipes.Internal
             return marshaller.ContextualDeserializer(deserializationContext);
         }
 
-        public static void Serialize<TPayload>(Frame frame, Marshaller<TPayload> marshaller, TPayload message)
+        public static void Serialize<TPayload>(Message message, Marshaller<TPayload> marshaller, TPayload payload)
         {
-            var serializationContext = new MemorySerializationContext(frame);
-            marshaller.ContextualSerializer(message, serializationContext);
+            var serializationContext = new MemorySerializationContext(message);
+            marshaller.ContextualSerializer(payload, serializationContext);
         }
     }
 }

@@ -112,7 +112,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             
 
-            Frame frame = new()
+            Message message = new()
             {
                 Request = new TransportProtocol.Request
                 {
@@ -126,9 +126,9 @@ namespace Ipc.Grpc.NamedPipes.Internal
             // Transport.SendFrame packet
             //if (request != null)
             //{
-            using var serializationContext = new MemorySerializationContext(frame);
+            using var serializationContext = new MemorySerializationContext(message);
             method.RequestMarshaller.ContextualSerializer(request, serializationContext);
-            return SendOverPipeStream2(serializationContext.Bytes, serializationContext.FrameSize, token);
+            return SendOverPipeStream2(serializationContext.Bytes, serializationContext.MessageSize, token);
             //}
 
             //return SendOverPipeStream00(ms, token);
@@ -207,7 +207,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         #region Server
 
-        public async ValueTask<(Frame, Memory<byte>? payloadBytes, IMemoryOwner<byte> owner)> ReadFrame3(CancellationToken token = default)
+        public async ValueTask<(Message, Memory<byte>? payloadBytes, IMemoryOwner<byte> owner)> ReadFrame3(CancellationToken token = default)
         {
 
             int readBytes = await _pipeStream.ReadAsync(_frameHeaderBytes, 0, NamedPipeTransportV2.FrameHeader.Size, token)
@@ -226,7 +226,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             Debug.Assert(_pipeStream.IsMessageComplete, "Unexpected message :too long!");
 
             //MemoryStream ms =new()
-            Frame? message = Frame.Parser.ParseFrom(framePlusPayloadBytes.Span.Slice(0, header.FrameSize));
+            Message? message = Message.Parser.ParseFrom(framePlusPayloadBytes.Span.Slice(0, header.FrameSize));
             if (header.PayloadSize == 0)
             {
                 owner.Dispose();
@@ -238,8 +238,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public async Task ReadClientMessages(IClientMessageHandler messageHandler)
         {
-            (Frame frame, var payloadBytes, var owner) = await ReadFrame3().ConfigureAwait(false);
-            if (frame.DataCase == Frame.DataOneofCase.Request)
+            (Message frame, var payloadBytes, var owner) = await ReadFrame3().ConfigureAwait(false);
+            if (frame.DataCase == Message.DataOneofCase.Request)
             {
                 await messageHandler.HandleUnaryRequest2(frame.Request, payloadBytes.Value, owner).ConfigureAwait(false);
                 return;
@@ -290,7 +290,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         //TODO : make this allocation free
         public ValueTask SendUnaryResponse<TResponse>(Marshaller<TResponse> marshaller, TResponse response, Metadata trailers, StatusCode statusCode, string statusDetail, CancellationToken token)
         {
-            Frame frame = new()
+            Message message = new()
             {
                 Response = new TransportProtocol.Response
                 {
@@ -302,10 +302,10 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 }
             };
 
-            using var serializationContext = new MemorySerializationContext(frame);
+            using var serializationContext = new MemorySerializationContext(message);
             marshaller.ContextualSerializer(response, serializationContext);
 
-            return SendOverPipeStream2(serializationContext.Bytes, serializationContext.FrameSize, token);
+            return SendOverPipeStream2(serializationContext.Bytes, serializationContext.MessageSize, token);
         }
 
         public ValueTask SendUnaryResponse(Metadata trailers, StatusCode statusCode, string statusDetail, CancellationToken token)

@@ -26,7 +26,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _frameHeaderBytes = ArrayPool<byte>.Shared.Rent(FrameHeader.Size);
         }
 
-        public async ValueTask<(Frame, Memory<byte>? payloadBytes)> ReadFrame(CancellationToken token = default)
+        public async ValueTask<(Message, Memory<byte>? payloadBytes)> ReadFrame(CancellationToken token = default)
         {
             int readBytes = await _pipeStream.ReadAsync(_frameHeaderBytes, 0, FrameHeader.Size, token)
                                              .ConfigureAwait(false);
@@ -40,7 +40,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             readBytes = await _pipeStream.ReadAsync(buffer, token)
                                          .ConfigureAwait(false);
             Debug.Assert(readBytes == header.TotalSize, "Client is a layer !");
-            Frame? message = Frame.Parser.ParseFrom(buffer.Span.Slice(0, header.FrameSize));
+            Message? message = Message.Parser.ParseFrom(buffer.Span.Slice(0, header.FrameSize));
             if (header.PayloadSize == 0)
             {
                 owner.Dispose();
@@ -51,7 +51,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         }
 
         //TODO : make this allocation free
-        public async ValueTask<(Frame, Memory<byte>? payloadBytes)> ReadFrame3(CancellationToken token = default)
+        public async ValueTask<(Message, Memory<byte>? payloadBytes)> ReadFrame3(CancellationToken token = default)
         {
             int readBytes = await _pipeStream.ReadAsync(_frameHeaderBytes, 0, FrameHeader.Size, token)
                                              .ConfigureAwait(false);
@@ -69,7 +69,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             Debug.Assert(_pipeStream.IsMessageComplete, "Unexpected message :too long!");
 
             //MemoryStream ms =new()
-            Frame? message = Frame.Parser.ParseFrom(framePlusPayloadBytes.Span.Slice(0, header.FrameSize));
+            Message? message = Message.Parser.ParseFrom(framePlusPayloadBytes.Span.Slice(0, header.FrameSize));
             if (header.PayloadSize == 0)
             {
                 owner.Dispose();
@@ -80,7 +80,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         }
 
         //TODO: Optimize memory allocation here
-        public async ValueTask SendFrame(Frame message, Action<MemoryStream>? payloadSerializer, CancellationToken token = default)
+        public async ValueTask SendFrame(Message message, Action<MemoryStream>? payloadSerializer, CancellationToken token = default)
         {
             using MemoryStream ms = new();
             message.WriteTo(ms);
@@ -99,7 +99,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             ms.WriteTo(_pipeStream);
         }
         //TODO: Optimize memory allocation here
-        public async ValueTask SendFrame2(Frame message, Func<Frame, (Memory<byte>, int)> messageSerializer, CancellationToken token = default)
+        public async ValueTask SendFrame2(Message message, Func<Message, (Memory<byte>, int)> messageSerializer, CancellationToken token = default)
         {
             //Serialize Frame message & payload if any
             (Memory<byte> messageBytes, int payloadSize) = messageSerializer.Invoke(message);
@@ -118,7 +118,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             //TODO:
         }
 
-        public async ValueTask SendFrame3(Frame message, Func<Frame, (Memory<byte>, int)> messageSerializer, CancellationToken token = default)
+        public async ValueTask SendFrame3(Message message, Func<Message, (Memory<byte>, int)> messageSerializer, CancellationToken token = default)
         {
             //Serialize Frame message & payload if any
             (Memory<byte> messageBytes, int frameSize) = messageSerializer.Invoke(message);

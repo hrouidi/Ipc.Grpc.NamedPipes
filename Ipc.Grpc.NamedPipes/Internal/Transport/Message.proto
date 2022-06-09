@@ -6,7 +6,7 @@ import "google/protobuf/timestamp.proto";
 package Ipc.Grpc.NamedPipes.TransportProtocol;
 
 //TODO: move this to FrameHeader
-message Frame {
+message Message {
     oneof data {
         Request request = 1;
         Response response = 2;
