@@ -18,7 +18,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public ServerConnectionContext(NamedPipeServerStream pipeStream, IReadOnlyDictionary<string, Func<ServerConnectionContext, ValueTask>> methodHandlers)
         {
-            CallContext = new NamedPipeCallContext(this);
+            //CallContext = new NamedPipeCallContext(this);
             PipeStream = pipeStream;
             Transport = new NamedPipeTransport(pipeStream);
             _methodHandlers = methodHandlers;
@@ -154,7 +154,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _request = message;
             _payload = payload;
             Deadline = new Deadline(message.Deadline?.ToDateTime());
-            RequestHeaders = TransportMessageBuilder.ToMetadata(message.Headers.Metadata);
+            RequestHeaders = OldMessageBuilder.ToMetadata(message.Headers.Metadata);
             Task.Run(async () => await _methodHandlers[message.MethodFullName](this).ConfigureAwait(false));
         }
 
@@ -169,7 +169,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _payloadStream = payload;
 
             Deadline = new Deadline(message.Deadline?.ToDateTime());
-            RequestHeaders = TransportMessageBuilder.ToMetadata(message.Headers.Metadata);
+            RequestHeaders = OldMessageBuilder.ToMetadata(message.Headers.Metadata);
             //Task.Run(async () => await _methodHandlers[message.MethodFullName](this).ConfigureAwait(false));
             await _methodHandlers[message.MethodFullName](this).ConfigureAwait(false);
         }

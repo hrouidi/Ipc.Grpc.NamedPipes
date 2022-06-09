@@ -97,7 +97,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         //TODO : make this allocation free
         public ValueTask SendUnaryRequest<TRequest, TResponse>(Method<TRequest, TResponse> method, TRequest request, DateTime? deadline, Metadata headers, CancellationToken token)
         {
-            ClientMessage message = TransportMessageBuilder.BuildRequest2(method, request, deadline, headers);
+            ClientMessage message = OldMessageBuilder.BuildRequest2(method, request, deadline, headers);
             MemoryStream ms = new();
             message.WriteDelimitedTo(ms);
             if (request != null)
@@ -137,7 +137,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public void SendRequest<TRequest, TResponse>(Method<TRequest, TResponse> method, TRequest request, DateTime? deadline, Metadata headers)
         {
-            (ClientMessage message, byte[] payload) = TransportMessageBuilder.BuildRequest(method, request, deadline, headers);
+            (ClientMessage message, byte[] payload) = OldMessageBuilder.BuildRequest(method, request, deadline, headers);
             using MemoryStream ms = new();
             message.WriteDelimitedTo(ms);
             if (message.Request.PayloadSize > 0)
@@ -147,7 +147,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public void SendStreamRequestPayload<TRequest>(Marshaller<TRequest> marshaller, TRequest request)
         {
-            (ClientMessage message, byte[] payload) = TransportMessageBuilder.BuildStreamPayload(marshaller, request);
+            (ClientMessage message, byte[] payload) = OldMessageBuilder.BuildStreamPayload(marshaller, request);
             using MemoryStream ms = new();
             message.WriteDelimitedTo(ms);
             ms.Write(payload, 0, payload.Length);
@@ -157,14 +157,14 @@ namespace Ipc.Grpc.NamedPipes.Internal
         public void SendRequestPayloadStreamEnd()
         {
             using MemoryStream ms = new();
-            TransportMessageBuilder.StreamEnd.WriteDelimitedTo(ms);
+            OldMessageBuilder.StreamEnd.WriteDelimitedTo(ms);
             ms.WriteTo(_pipeStream);
         }
 
         public void SendCancelRequest()
         {
             using MemoryStream ms = new();
-            TransportMessageBuilder.CancelRequest.WriteDelimitedTo(ms);
+            OldMessageBuilder.CancelRequest.WriteDelimitedTo(ms);
             ms.WriteTo(_pipeStream);
         }
 
@@ -310,7 +310,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public ValueTask SendUnaryResponse(Metadata trailers, StatusCode statusCode, string statusDetail, CancellationToken token)
         {
-            ServerMessage message = TransportMessageBuilder.BuildUnaryResponse(trailers, statusCode, statusDetail);
+            ServerMessage message = OldMessageBuilder.BuildUnaryResponse(trailers, statusCode, statusDetail);
             MemoryStream ms = new();
             message.WriteDelimitedTo(ms);
             return SendOverPipeStream(ms, token);
@@ -318,7 +318,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public void SendResponse(byte[] response, Metadata trailers, StatusCode statusCode, string statusDetail)
         {
-            ServerMessage message = TransportMessageBuilder.BuildResponse(response?.Length >= 0 ? response.Length : -1, trailers, statusCode, statusDetail);
+            ServerMessage message = OldMessageBuilder.BuildResponse(response?.Length >= 0 ? response.Length : -1, trailers, statusCode, statusDetail);
             using MemoryStream ms = new();
             message.WriteDelimitedTo(ms);
             if (response != null)
@@ -329,7 +329,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         //TODO : fix SendResponseHeaders
         public ValueTask SendResponseHeaders(Metadata responseHeaders, CancellationToken token)
         {
-            ServerMessage message = TransportMessageBuilder.BuildResponseHeadersMessage(responseHeaders);
+            ServerMessage message = OldMessageBuilder.BuildResponseHeadersMessage(responseHeaders);
             using MemoryStream ms = new();
             message.WriteDelimitedTo(ms);
             return SendOverPipeStream(ms, token);
@@ -337,7 +337,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public void SendStreamResponsePayload<TResponse>(Marshaller<TResponse> marshaller, TResponse response)
         {
-            (ServerMessage message, byte[] payload) = TransportMessageBuilder.BuildResponseStreamPayload(marshaller, response);
+            (ServerMessage message, byte[] payload) = OldMessageBuilder.BuildResponseStreamPayload(marshaller, response);
             using MemoryStream ms = new();
             message.WriteDelimitedTo(ms);
             ms.Write(payload, 0, payload.Length);

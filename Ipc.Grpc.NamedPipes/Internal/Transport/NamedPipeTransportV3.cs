@@ -51,7 +51,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             return packet;
         }
 
-        public async ValueTask SendFrame<TPayload>(FrameInfo<TPayload> frame, CancellationToken token = default)
+        public async ValueTask SendFrame<TPayload>(FrameInfo<TPayload> frame, CancellationToken token = default) where TPayload : class
         {
             using MemorySerializationContext serializationContext = new(frame.Message);
             frame.PayloadSerializer(frame.Payload, serializationContext);

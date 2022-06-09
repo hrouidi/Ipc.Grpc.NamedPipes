@@ -9,7 +9,7 @@ namespace Ipc.Grpc.NamedPipes
     public class NamedPipeServer : IDisposable
     {
         private readonly ServerListener _pool;
-        private readonly Dictionary<string, Func<ServerConnectionContext, ValueTask>> _methodHandlers = new();
+        private readonly Dictionary<string, Func<ServerConnection, ValueTask>> _methodHandlers = new();
 
         public NamedPipeServer(string pipeName) : this(pipeName, NamedPipeServerOptions.Default) { }
 
@@ -51,18 +51,24 @@ namespace Ipc.Grpc.NamedPipes
             }
 
             public override void AddMethod<TRequest, TResponse>(Method<TRequest, TResponse> method, UnaryServerMethod<TRequest, TResponse> handler)
+                where TRequest : class
+                where TResponse : class
             {
-                async ValueTask Handle(ServerConnectionContext ctx)
+                async ValueTask Handle(ServerConnection connection)
                 {
                     try
                     {
-                        TRequest request = ctx.GetUnaryRequest2(method.RequestMarshaller);
-                        TResponse response = await handler(request, ctx.CallContext).ConfigureAwait(false);
-                        await ctx.UnarySuccess(method.ResponseMarshaller, response).ConfigureAwait(false);
+                        TRequest request = connection.UnaryRequestFrame.GetPayload(method.RequestMarshaller.ContextualDeserializer);
+                        
+                        TResponse response = await handler(request, connection.CallContext).ConfigureAwait(false);
+
+                        await connection.Success(method.ResponseMarshaller, response)
+                                        .ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
-                        await ctx.UnaryError(ex).ConfigureAwait(false);
+                        await connection.Error<TResponse>(ex)
+                                        .ConfigureAwait(false);
                     }
                 }
 
@@ -70,17 +76,24 @@ namespace Ipc.Grpc.NamedPipes
             }
 
             public override void AddMethod<TRequest, TResponse>(Method<TRequest, TResponse> method, ClientStreamingServerMethod<TRequest, TResponse> handler)
+                where TRequest : class
+                where TResponse : class
             {
-                async ValueTask Handle(ServerConnectionContext ctx)
+                async ValueTask Handle(ServerConnection connection)
                 {
                     try
                     {
-                        TResponse response = await handler(ctx.GetRequestStreamReader(method.RequestMarshaller), ctx.CallContext).ConfigureAwait(false);
-                        ctx.Success(SerializationHelpers.Serialize(method.ResponseMarshaller, response));
+                        IAsyncStreamReader<TRequest> requestStreamReader = connection.GetRequestStreamReader(method.RequestMarshaller);
+                        
+                        TResponse response = await handler(requestStreamReader, connection.CallContext).ConfigureAwait(false);
+
+                        await connection.Success(method.ResponseMarshaller, response)
+                                 .ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
-                        ctx.Error(ex);
+                        await connection.Error<TResponse>(ex)
+                                        .ConfigureAwait(false);
                     }
                 }
 
@@ -88,18 +101,25 @@ namespace Ipc.Grpc.NamedPipes
             }
 
             public override void AddMethod<TRequest, TResponse>(Method<TRequest, TResponse> method, ServerStreamingServerMethod<TRequest, TResponse> handler)
+                where TRequest : class
+                where TResponse : class
             {
-                async ValueTask Handle(ServerConnectionContext ctx)
+                async ValueTask Handle(ServerConnection connection)
                 {
                     try
                     {
-                        TRequest request = ctx.GetRequest(method.RequestMarshaller);
-                        await handler(request, ctx.GetResponseStreamWriter(method.ResponseMarshaller), ctx.CallContext).ConfigureAwait(false);
-                        ctx.Success();
+                        TRequest request = connection.UnaryRequestFrame.GetPayload(method.RequestMarshaller.ContextualDeserializer);
+                        IServerStreamWriter<TResponse> responseStreamReader = connection.GetResponseStreamWriter(method.ResponseMarshaller);
+
+                        await handler(request, responseStreamReader, connection.CallContext).ConfigureAwait(false);
+
+                        await connection.Success<TResponse>()
+                                        .ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
-                        ctx.Error(ex);
+                        await connection.Error<TResponse>(ex)
+                                        .ConfigureAwait(false);
                     }
                 }
 
@@ -107,17 +127,25 @@ namespace Ipc.Grpc.NamedPipes
             }
 
             public override void AddMethod<TRequest, TResponse>(Method<TRequest, TResponse> method, DuplexStreamingServerMethod<TRequest, TResponse> handler)
+                where TRequest : class
+                where TResponse : class
             {
-                async ValueTask Handle(ServerConnectionContext ctx)
+                async ValueTask Handle(ServerConnection connection)
                 {
                     try
                     {
-                        await handler(ctx.GetRequestStreamReader(method.RequestMarshaller), ctx.GetResponseStreamWriter(method.ResponseMarshaller), ctx.CallContext).ConfigureAwait(false);
-                        ctx.Success();
+                        var requestStreamReader = connection.GetRequestStreamReader(method.RequestMarshaller);
+                        var responseStreamReader = connection.GetResponseStreamWriter(method.ResponseMarshaller);
+
+                        await handler(requestStreamReader, responseStreamReader, connection.CallContext).ConfigureAwait(false);
+
+                        await connection.Success<TResponse>()
+                                        .ConfigureAwait(false); ;
                     }
                     catch (Exception ex)
                     {
-                        ctx.Error(ex);
+                        await connection.Error<TResponse>(ex)
+                                        .ConfigureAwait(false);
                     }
                 }
 

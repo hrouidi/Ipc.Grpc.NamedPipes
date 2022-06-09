@@ -8,7 +8,7 @@ using Ipc.Grpc.NamedPipes.Protocol;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
-    internal static class TransportMessageBuilder
+    internal static class OldMessageBuilder
     {
         #region Client messages
         //TODO : cache bytes of these messages

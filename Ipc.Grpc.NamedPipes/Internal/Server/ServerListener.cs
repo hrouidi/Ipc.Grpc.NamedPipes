@@ -14,12 +14,12 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly List<Task> _listenerTasks;
         private readonly List<Task> _connectionsTasks;
 
-        private readonly IReadOnlyDictionary<string, Func<ServerConnectionContext, ValueTask>> _methodHandlers;
+        private readonly IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> _methodHandlers;
 
         private volatile bool _started;
         private volatile bool _disposed;
 
-        public ServerListener(string pipeName, NamedPipeServerOptions options, IReadOnlyDictionary<string, Func<ServerConnectionContext, ValueTask>> methodHandlers)
+        public ServerListener(string pipeName, NamedPipeServerOptions options, IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> methodHandlers)
         {
             _pipeName = pipeName;
             _options = options;
@@ -130,8 +130,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
             await Task.Yield();
             try
             {
-                using var ctx = new ServerConnectionContext(pipeServer, _methodHandlers);
-                await ctx.ListenMessagesAsync(_shutdownCancellationTokenSource.Token).ConfigureAwait(false);
+                using var connection = new ServerConnection(pipeServer, _methodHandlers);
+                await connection.ListenMessagesAsync(_shutdownCancellationTokenSource.Token).ConfigureAwait(false);
             }
             catch (Exception ex)
             {

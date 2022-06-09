@@ -70,13 +70,13 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public void HandleResponseHeaders(Headers headers)
         {
-            var headerMetadata = TransportMessageBuilder.ToMetadata(headers.Metadata);
+            var headerMetadata = OldMessageBuilder.ToMetadata(headers.Metadata);
             EnsureResponseHeadersSet(headerMetadata);
         }
 
         public async ValueTask HandleResponseAsync(Response response, byte[] payload)
         {
-            var trailers = TransportMessageBuilder.ToMetadata(response.Trailers.Metadata);
+            var trailers = OldMessageBuilder.ToMetadata(response.Trailers.Metadata);
             var status = new Status((StatusCode)response.Trailers.StatusCode, response.Trailers.StatusDetail);
 
             EnsureResponseHeadersSet();

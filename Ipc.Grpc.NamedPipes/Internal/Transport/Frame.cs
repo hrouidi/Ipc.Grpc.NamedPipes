@@ -31,19 +31,27 @@ internal sealed class Frame : IDisposable//where TPayload : class
     public void Dispose() => _memoryOwner?.Dispose();
 }
 
-internal readonly struct FrameInfo<TPayload> : IEquatable<FrameInfo<TPayload>>//where TPayload : class 
+internal readonly struct FrameInfo<TPayload> : IEquatable<FrameInfo<TPayload>> where TPayload : class
 {
-    public Action<TPayload, SerializationContext> PayloadSerializer { get; }
 
     public Message Message { get; }
 
-    public TPayload Payload { get; }
+    public TPayload? Payload { get; }
 
-    public FrameInfo(Message message, TPayload payload, Action<TPayload, SerializationContext> payloadContextualPayloadSerializer)
+    public Action<TPayload, SerializationContext>? PayloadSerializer { get; }
+
+    public FrameInfo(Message message, TPayload? payload, Action<TPayload, SerializationContext>? payloadSerializer)
     {
         Message = message;
         Payload = payload;
-        PayloadSerializer = payloadContextualPayloadSerializer;
+        PayloadSerializer = payloadSerializer;
+    }
+
+    public FrameInfo(Message message)
+    {
+        Message = message;
+        Payload = null;
+        PayloadSerializer = null;
     }
 
     #region Equality semantic

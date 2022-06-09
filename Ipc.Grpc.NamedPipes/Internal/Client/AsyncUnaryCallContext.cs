@@ -1,16 +1,14 @@
 ﻿using System;
-using System.Buffers;
 using System.IO;
 using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
-using Ipc.Grpc.NamedPipes.Protocol;
 using Ipc.Grpc.NamedPipes.TransportProtocol;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
-    internal class AsyncUnaryCallContext<TRequest, TResponse>
+    internal class AsyncUnaryCallContext<TRequest, TResponse> where TRequest : class where TResponse : class
     {
         private readonly NamedPipeClientStream _pipeStream;
         private readonly CallOptions _callOptions;
@@ -20,7 +18,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly TRequest _request;
 
         private readonly TaskCompletionSource<Metadata> _responseHeadersTcs;
-        private readonly NamedPipeTransport _transport;
+        private readonly NamedPipeTransportV3 _transport;
 
         private CancellationTokenRegistration _cancelReg;
         private Metadata _responseTrailers;
@@ -30,7 +28,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             _pipeStream = pipeStream;
             _callOptions = callOptions;
-            _transport = new NamedPipeTransport(_pipeStream);
+            _transport = new NamedPipeTransportV3(_pipeStream);
             _responseHeadersTcs = new TaskCompletionSource<Metadata>(TaskCreationOptions.RunContinuationsAsynchronously);
             _deadline = new Deadline(callOptions.Deadline);
             _connectionTimeout = connectionTimeout;
@@ -47,13 +45,18 @@ namespace Ipc.Grpc.NamedPipes.Internal
             {
                 await _pipeStream.ConnectAsync(_connectionTimeout, combined.Token)
                                  .ConfigureAwait(false);
-                //_pipeStream.ConnectAsync(_connectionTimeout);
+
                 _pipeStream.ReadMode = PipeTransmissionMode.Message;
-                await _transport.SendUnaryRequest2(_method, _request, _callOptions.Deadline, _callOptions.Headers, combined.Token)
+
+                Message message = MessageBuilder.BuildRequest(_method, _callOptions.Deadline, _callOptions.Headers);
+
+                FrameInfo<TRequest> frameInfo = new(message, _request, _method.RequestMarshaller.ContextualSerializer);
+
+                await _transport.SendFrame(frameInfo, combined.Token)
                                 .ConfigureAwait(false);
+
                 _cancelReg = _callOptions.CancellationToken.Register(DisposeCall);
-                TResponse ret = await ReadResponsePayload(combined.Token)
-                                                        .ConfigureAwait(false);
+                TResponse ret = await ReadResponsePayload(combined.Token).ConfigureAwait(false);
                 return ret;
             }
             catch (Exception ex)
@@ -88,7 +91,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             try
             {
-                _transport.SendCancelRequest();
+                //_transport.SendCancelRequest();
 
                 _pipeStream.Dispose();
                 _cancelReg.Dispose();
@@ -103,14 +106,12 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             while (_pipeStream.IsConnected && token.IsCancellationRequested == false)
             {
-                (Message frame, Memory<byte>? payloadBytes, IMemoryOwner<byte> owner) = await _transport.ReadFrame3(token)
-                                                                                                    .ConfigureAwait(false);
-                switch (frame.DataCase)
+                Frame frame = await _transport.ReadFrame(token).ConfigureAwait(false);
+                switch (frame.Message.DataCase)
                 {
                     case Message.DataOneofCase.Response:
-                        //var trailers = TransportMessageBuilder.ToMetadata(frame.Response.Trailers.Metadata);
-                        var trailers =new  Metadata();
-                        var status = new Status((StatusCode)frame.Response.Trailers.StatusCode, frame.Response.Trailers.StatusDetail);
+                        var trailers = MessageBuilder.ToMetadata(frame.Message.Response.Trailers.Metadata);
+                        var status = new Status((StatusCode)frame.Message.Response.Trailers.StatusCode, frame.Message.Response.Trailers.StatusDetail);
 
                         EnsureResponseHeadersSet();
                         _responseTrailers = trailers ?? new Metadata();
@@ -120,16 +121,15 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
                         if (status.StatusCode == StatusCode.OK)
                         {
-                            var deserializationContext = new MemoryDeserializationContext(payloadBytes.Value);
-                            TResponse ret = _method.ResponseMarshaller.ContextualDeserializer(deserializationContext);
+                            TResponse ret = frame.GetPayload(_method.ResponseMarshaller.ContextualDeserializer);
                             return ret;
                         }
-
                         throw new RpcException(status);
+
                     case Message.DataOneofCase.ResponseHeaders:
-                        //var headerMetadata = TransportMessageBuilder.ToMetadata(rep.Headers.Metadata);
-                        //EnsureResponseHeadersSet(headerMetadata);
-                        throw new ArgumentOutOfRangeException();
+                        var headerMetadata = MessageBuilder.ToMetadata(frame.Message.ResponseHeaders.Metadata);
+                        EnsureResponseHeadersSet(headerMetadata);
+                        break;
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
