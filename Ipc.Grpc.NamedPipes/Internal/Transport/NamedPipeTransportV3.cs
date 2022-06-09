@@ -72,7 +72,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         }
 
         [StructLayout(LayoutKind.Sequential, Size = Size)]
-        private readonly struct FrameHeader : IEquatable<FrameHeader>
+        internal readonly struct FrameHeader : IEquatable<FrameHeader>
         {
             public const int Size = 2 * sizeof(int);
             

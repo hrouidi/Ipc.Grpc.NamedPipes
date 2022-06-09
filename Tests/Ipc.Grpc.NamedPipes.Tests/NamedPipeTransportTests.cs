@@ -17,16 +17,11 @@ public class NamedPipeTransportTests
     [Test]
     public void FrameHeader_Tests()
     {
-        Span<byte> layout = stackalloc byte[8];
-        Span<byte> layout2 = stackalloc byte[8];
-        var bytes = new byte[8];
-        var ret = NamedPipeTransportV2.FrameHeader.FromSpan(bytes);
-        NamedPipeTransportV2.FrameHeader.ToSpan(layout, ref ret);
-
-        NamedPipeTransportV2.FrameHeader h = new(15, 8);
-        NamedPipeTransportV2.FrameHeader.ToSpan3(layout2, 15,8);
-        var h2 = NamedPipeTransportV2.FrameHeader.FromSpan(layout2);
-        Assert.That(h, Is.EqualTo(h2));
+        Span<byte> bytes = stackalloc byte[8];
+        NamedPipeTransportV3.FrameHeader header1 = new(15, 8);
+        NamedPipeTransportV3.FrameHeader.Write(bytes, 15,8);
+        NamedPipeTransportV3.FrameHeader header2 = NamedPipeTransportV3.FrameHeader.FromSpan(bytes);
+        Assert.That(header1, Is.EqualTo(header2));
     }
 
     [Test]
