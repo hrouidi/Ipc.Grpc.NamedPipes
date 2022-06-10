@@ -8,7 +8,7 @@ using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
 using Ipc.Grpc.NamedPipes.VsHttp.Tests.TestCaseSource;
 using NUnit.Framework;
 
-namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
+namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
 {
     public class UnaryAsyncPerformanceTest
     {
@@ -90,12 +90,12 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
         {
             using ChannelContext ctx = factory.Create();
 
-            var bytes = new byte[ 1024 * 1024];
+            var bytes = new byte[300 * 1024 * 1024];
             ByteString byteString = ByteString.CopyFrom(bytes);
             ResponseMessage ret = null;
             var stopwatch = Stopwatch.StartNew();
-            for (int i = 0; i < 1000; i++)
-                ret = await ctx.Client.SimpleUnaryAsync(new RequestMessage { Binary = byteString });
+            //for (int i = 0; i < 1000; i++)
+            ret = await ctx.Client.SimpleUnaryAsync(new RequestMessage { Binary = byteString });
             stopwatch.Stop();
             Assert.That(ret.Binary, Is.EqualTo(byteString));
             Console.WriteLine($" Elapsed :{stopwatch.Elapsed}");

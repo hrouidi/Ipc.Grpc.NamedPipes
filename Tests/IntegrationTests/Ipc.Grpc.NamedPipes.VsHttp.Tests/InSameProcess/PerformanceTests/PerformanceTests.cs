@@ -8,11 +8,11 @@ using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
 using Ipc.Grpc.NamedPipes.VsHttp.Tests.TestCaseSource;
 using NUnit.Framework;
 
-namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
+namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
 {
-    public class InSameProcessPerformanceTests
+    public class PerformanceTests
     {
-        private const int TestTimeout = 10*1000;
+        private const int TestTimeout = 10 * 1000;
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task ServerStreamingManyMessagesPerformance(ChannelContextFactory factory)

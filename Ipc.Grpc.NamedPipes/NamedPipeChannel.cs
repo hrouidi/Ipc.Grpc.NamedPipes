@@ -41,7 +41,7 @@ namespace Ipc.Grpc.NamedPipes
         {
             NamedPipeClientStream stream = CreatePipeStream();
             var ctx = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, request);
-            return ctx.GetResponseAsync().Result;
+            return ctx.GetResponseAsync().GetAwaiter().GetResult();
         }
 
         public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string host, 

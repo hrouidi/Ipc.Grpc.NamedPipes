@@ -30,7 +30,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _connectionsTasks = new List<Task>();
         }
 
-        public void Start(int poolSize = 100)
+        public void Start(int poolSize = 1)
         {
             CheckIfDisposed();
             if (_started == false)
@@ -109,6 +109,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             while (true)
             {
+                //TODO :  Try recycle from PipePool
                 NamedPipeServerStream pipeServer = CreatePipeServer();
                 try
                 {

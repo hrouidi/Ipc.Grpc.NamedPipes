@@ -9,7 +9,7 @@ using Ipc.Grpc.NamedPipes.TransportProtocol;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
-    internal class ClientConnection<TRequest, TResponse> : IDisposable  where TRequest : class where TResponse : class
+    internal class ClientConnection<TRequest, TResponse> : IDisposable where TRequest : class where TResponse : class
     {
         private readonly NamedPipeClientStream _pipeStream;
         private readonly CallOptions _callOptions;
@@ -75,32 +75,28 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public async Task<TResponse> GetResponseAsync()
         {
-            using var combined = CancellationTokenSource.CreateLinkedTokenSource(_callOptions.CancellationToken, _deadline.Token);
+            var combined = CancellationTokenSource.CreateLinkedTokenSource(_callOptions.CancellationToken, _deadline.Token);
             try
             {
                 await _pipeStream.ConnectAsync(_connectionTimeout, combined.Token)
                                  .ConfigureAwait(false);
 
                 _pipeStream.ReadMode = PipeTransmissionMode.Message;
+                Task<TResponse> readTask = ReadResponsePayload(combined.Token);
 
                 Message message = MessageBuilder.BuildRequest(_method, _callOptions.Deadline, _callOptions.Headers);
-
                 FrameInfo<TRequest> frameInfo = new(message, _request, _method.RequestMarshaller.ContextualSerializer);
-
                 await _transport.SendFrame(frameInfo, combined.Token)
                                 .ConfigureAwait(false);
 
-                _cancelReg = _callOptions.CancellationToken.Register(DisposeCall);
-                TResponse ret = await ReadResponsePayload(combined.Token).ConfigureAwait(false);
+                //_cancelReg = _callOptions.CancellationToken.Register(DisposeCall);
+                TResponse ret = await readTask.ConfigureAwait(false);
                 return ret;
             }
             catch (Exception ex)
             {
-                if (ex is TimeoutException timeoutError)
-                    throw new RpcException(new Status(StatusCode.Unavailable, timeoutError.Message));
-
-                if (ex is IOException ioError)
-                    throw new RpcException(new Status(StatusCode.Unavailable, $"failed to connect: {ioError.Message}"));
+                if (ex is TimeoutException  or IOException )
+                    throw new RpcException(new Status(StatusCode.Unavailable, ex.Message));
 
                 if (ex is OperationCanceledException)
                 {
@@ -113,8 +109,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
             finally
             {
-                _pipeStream.Dispose();
-                _transport.Dispose();
+                Dispose();
             }
         }
 
@@ -126,27 +121,28 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 switch (frame.Message.DataCase)
                 {
                     case Message.DataOneofCase.Response:
-                        var trailers = MessageBuilder.ToMetadata(frame.Message.Response.Trailers.Metadata);
-                        var status = new Status((StatusCode)frame.Message.Response.Trailers.StatusCode, frame.Message.Response.Trailers.StatusDetail);
+                        //may be it's a happy end: release pipe stream
+                        _pipeStream.Dispose();
+
+                        Response response = frame.Message.Response;
 
                         EnsureResponseHeadersSet();
-                        _responseTrailers = trailers ?? new Metadata();
-                        _status = status;
+                        _status = new Status((StatusCode)response.Trailers.StatusCode, response.Trailers.StatusDetail);
+                        _responseTrailers = MessageBuilder.ToMetadata(response.Trailers.Metadata) ?? new Metadata();
 
-                        _pipeStream.Close();
-
-                        if (status.StatusCode == StatusCode.OK)
+                        if (_status.StatusCode == StatusCode.OK)
                         {
                             TResponse ret = frame.GetPayload(_method.ResponseMarshaller.ContextualDeserializer);
                             return ret;
                         }
-                        throw new RpcException(status);
+                        throw new RpcException(_status);
 
                     case Message.DataOneofCase.ResponseHeaders:
                         var headerMetadata = MessageBuilder.ToMetadata(frame.Message.ResponseHeaders.Metadata);
                         EnsureResponseHeadersSet(headerMetadata);
                         break;
                     default:
+                        _pipeStream.Dispose();
                         throw new ArgumentOutOfRangeException();
                 }
             }

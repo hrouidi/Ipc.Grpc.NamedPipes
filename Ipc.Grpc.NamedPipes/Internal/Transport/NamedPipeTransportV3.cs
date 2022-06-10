@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Ipc.Grpc.NamedPipes.Internal.Helpers;
-
+using Google.Protobuf;
 using Ipc.Grpc.NamedPipes.TransportProtocol;
 
 namespace Ipc.Grpc.NamedPipes.Internal
@@ -64,9 +64,20 @@ namespace Ipc.Grpc.NamedPipes.Internal
             return _pipeStream.WriteAsync(bytes, token);
         }
 
-        public async ValueTask SendFrame(Message message, CancellationToken token = default)
+        public ValueTask SendFrame(Message message, CancellationToken token = default)
         {
-            throw new NotImplementedException();
+            var msgSize = message.CalculateSize();
+
+            using var memoryOwner = MemoryPool<byte>.Shared.Rent(FrameHeader.Size + msgSize);
+            Memory<byte> frameBytes = memoryOwner.Memory.Slice(0, FrameHeader.Size + msgSize);
+            //#1 : frame header
+            Memory<byte> headerBytes = frameBytes.Slice(0, FrameHeader.Size);
+            FrameHeader.Write(headerBytes.Span, frameBytes.Length, msgSize);
+            //#2 : Message
+            Memory<byte> messageBytes = frameBytes.Slice(FrameHeader.Size);
+            message.WriteTo(messageBytes.Span);
+
+            return _pipeStream.WriteAsync(frameBytes, token);
         }
 
         public void Dispose()

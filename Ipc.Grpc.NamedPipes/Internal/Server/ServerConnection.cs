@@ -46,6 +46,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             try
             {
                 _pipeStream.Disconnect();
+                //TODO: recycle this instance in PipePool instead of disposing it
                 _pipeStream.Dispose();
                 _transport.Dispose();
             }
