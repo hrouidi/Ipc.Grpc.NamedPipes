@@ -67,7 +67,7 @@ namespace Ipc.Grpc.NamedPipes
                     }
                     catch (Exception ex)
                     {
-                        await connection.Error<TResponse>(ex)
+                        await connection.Error(ex)
                                         .ConfigureAwait(false);
                     }
                 }
@@ -92,7 +92,7 @@ namespace Ipc.Grpc.NamedPipes
                     }
                     catch (Exception ex)
                     {
-                        await connection.Error<TResponse>(ex)
+                        await connection.Error(ex)
                                         .ConfigureAwait(false);
                     }
                 }
@@ -118,7 +118,7 @@ namespace Ipc.Grpc.NamedPipes
                     }
                     catch (Exception ex)
                     {
-                        await connection.Error<TResponse>(ex)
+                        await connection.Error(ex)
                                         .ConfigureAwait(false);
                     }
                 }
@@ -144,7 +144,7 @@ namespace Ipc.Grpc.NamedPipes
                     }
                     catch (Exception ex)
                     {
-                        await connection.Error<TResponse>(ex)
+                        await connection.Error(ex)
                                         .ConfigureAwait(false);
                     }
                 }

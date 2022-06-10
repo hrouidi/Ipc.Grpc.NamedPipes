@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
+using Ipc.Grpc.NamedPipes.Internal.Helpers;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {

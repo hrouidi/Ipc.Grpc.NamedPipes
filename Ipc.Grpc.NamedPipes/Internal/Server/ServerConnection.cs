@@ -5,6 +5,7 @@ using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
+using Ipc.Grpc.NamedPipes.Internal.Helpers;
 using Ipc.Grpc.NamedPipes.TransportProtocol;
 
 namespace Ipc.Grpc.NamedPipes.Internal
@@ -95,12 +96,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public ValueTask SendResponseHeaders(Metadata responseHeaders)
         {
-            var token = CancellationTokenSource.Token;
-            //ServerMessage message = TransportMessageBuilder.BuildResponseHeadersMessage(responseHeaders);
-            //using MemoryStream ms = new();
-            //message.WriteDelimitedTo(ms);
-            //return SendOverPipeStream(ms, token);
-            throw new NotImplementedException();
+            Message message = MessageBuilder.BuildResponseHeadersMessage(responseHeaders);
+            return _transport.SendFrame(message, CancellationTokenSource.Token);
         }
 
         public IAsyncStreamReader<TRequest> GetRequestStreamReader<TRequest>(Marshaller<TRequest> requestMarshaller)
@@ -113,8 +110,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             throw new NotImplementedException();
         }
 
-        public async ValueTask Success<TResponse>(Marshaller<TResponse> marshaller = null, TResponse response = null)
-            where TResponse : class
+        public ValueTask Success<TResponse>(Marshaller<TResponse>? marshaller = null, TResponse? response = null) where TResponse : class
         {
             IsCompleted = true;
             (StatusCode status, string detail) = CallContext.Status.StatusCode switch
@@ -123,18 +119,34 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 _ => (CallContext.Status.StatusCode, CallContext.Status.Detail)
             };
 
-            await SendReply(marshaller, response, CallContext.ResponseTrailers, status, detail, CallContext.CancellationToken)
-                .ConfigureAwait(false);
+            Message message = new()
+            {
+                Response = new Response
+                {
+                    Trailers = MessageBuilder.BuildTrailers(CallContext.ResponseTrailers, status, detail),
+                }
+            };
+            if (response != null && marshaller != null)
+            {
+                FrameInfo<TResponse> frameInfo = new(message, response, marshaller.ContextualSerializer);
+                return _transport.SendFrame(frameInfo, CallContext.CancellationToken);
+            }
+            return _transport.SendFrame(message);
         }
 
-        public async ValueTask Error<TResponse>(Exception ex)
-            where TResponse : class
+        public ValueTask Error(Exception ex)
         {
             IsCompleted = true;
             (StatusCode status, string detail) = GetStatus();
 
-            await SendReply<TResponse>(null, null, CallContext.ResponseTrailers, status, detail, CallContext.CancellationToken)
-                .ConfigureAwait(false);
+            Message message = new()
+            {
+                Response = new Response
+                {
+                    Trailers = MessageBuilder.BuildTrailers(CallContext.ResponseTrailers, status, detail),
+                }
+            };
+            return _transport.SendFrame(message, CallContext.CancellationToken);
 
             (StatusCode status, string detail) GetStatus()
             {
@@ -178,22 +190,5 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         #endregion
 
-        private ValueTask SendReply<TResponse>(Marshaller<TResponse>? marshaller, TResponse? response, Metadata trailers, StatusCode statusCode, string statusDetail, CancellationToken token)
-            where TResponse : class
-        {
-            Message message = new()
-            {
-                Response = new Response
-                {
-                    Trailers = new()
-                    {
-                        StatusCode = (int)statusCode,
-                        StatusDetail = statusDetail
-                    }
-                }
-            };
-            FrameInfo<TResponse> frameInfo = new(message, response, marshaller?.ContextualSerializer);
-            return _transport.SendFrame(frameInfo, token);
-        }
     }
 }

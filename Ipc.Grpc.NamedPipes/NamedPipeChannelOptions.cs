@@ -26,5 +26,7 @@ namespace Ipc.Grpc.NamedPipes
         /// </summary>
         public int ConnectionTimeout { get; set; } = Timeout.Infinite;
 
+        // TODO:  Add fault resilient strategies (retry,circuit breaker..)
+
     }
 }

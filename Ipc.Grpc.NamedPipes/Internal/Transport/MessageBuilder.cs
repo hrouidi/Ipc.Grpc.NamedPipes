@@ -17,7 +17,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         public static Message CancelRequest => new() { RequestControl = Control.Cancel };
         public static Message StreamEnd => new() { RequestControl = Control.StreamMessageEnd };
 
-        public static Message BuildRequest<TRequest, TResponse>(Method<TRequest, TResponse> method,  DateTime? deadline, Metadata headers)
+        public static Message BuildRequest<TRequest, TResponse>(Method<TRequest, TResponse> method, DateTime? deadline, Metadata headers)
         {
             Message message = new()
             {
@@ -43,6 +43,20 @@ namespace Ipc.Grpc.NamedPipes.Internal
         }
 
         #endregion
+
+        public static Message BuildResponseHeadersMessage(Metadata responseHeaders)
+        {
+            Headers headers = ToHeaders(responseHeaders);
+            return new Message { ResponseHeaders = headers };
+        }
+
+        public static Trailers BuildTrailers(Metadata contextTrailers, StatusCode statusCode, string statusDetail)
+        {
+            Trailers ret = ToTrailers(contextTrailers);
+            ret.StatusCode = (int)statusCode;
+            ret.StatusDetail = statusDetail;
+            return ret;
+        }
 
         private static Headers ToHeaders(Metadata metadata)
         {

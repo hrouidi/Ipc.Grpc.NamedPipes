@@ -51,9 +51,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
             return packet;
         }
 
-        public async ValueTask SendFrame<TPayload>(FrameInfo<TPayload> frame, CancellationToken token = default) where TPayload : class
+        public ValueTask SendFrame<TPayload>(FrameInfo<TPayload> frame, CancellationToken token = default) where TPayload : class
         {
-            //TODO: manage case when payload is null
             using MemorySerializationContext serializationContext = new(frame.Message);
             frame.PayloadSerializer(frame.Payload, serializationContext);
 
@@ -62,7 +61,12 @@ namespace Ipc.Grpc.NamedPipes.Internal
             Memory<byte> headerBytes = bytes.Slice(0, FrameHeader.Size);
             FrameHeader.Write(headerBytes.Span, bytes.Length, serializationContext.MessageSize);
 
-            await _pipeStream.WriteAsync(bytes, token).ConfigureAwait(false);
+            return _pipeStream.WriteAsync(bytes, token);
+        }
+
+        public async ValueTask SendFrame(Message message, CancellationToken token = default)
+        {
+            throw new NotImplementedException();
         }
 
         public void Dispose()

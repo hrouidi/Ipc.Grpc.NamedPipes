@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading;
 
-namespace Ipc.Grpc.NamedPipes.Internal
+namespace Ipc.Grpc.NamedPipes.Internal.Helpers
 {
     internal class Deadline
     {

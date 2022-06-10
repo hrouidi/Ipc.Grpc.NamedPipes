@@ -19,5 +19,6 @@ namespace Ipc.Grpc.NamedPipes
         /// </summary>
         public PipeSecurity PipeSecurity { get; set; }
 #endif
+        // TODO:  Add fault resilient strategies (retry,circuit breaker..)
     }
 }

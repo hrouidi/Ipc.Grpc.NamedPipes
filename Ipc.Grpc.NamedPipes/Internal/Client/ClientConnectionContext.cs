@@ -4,6 +4,7 @@ using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
+using Ipc.Grpc.NamedPipes.Internal.Helpers;
 using Ipc.Grpc.NamedPipes.Protocol;
 
 namespace Ipc.Grpc.NamedPipes.Internal

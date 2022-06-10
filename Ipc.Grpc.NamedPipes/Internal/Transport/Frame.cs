@@ -28,47 +28,52 @@ internal sealed class Frame : IDisposable//where TPayload : class
         _payloadBytes = payloadBytes;
     }
 
-    public void Dispose() => _memoryOwner?.Dispose();
+    public void Dispose() => _memoryOwner.Dispose();
 }
 
 internal readonly struct FrameInfo<TPayload> : IEquatable<FrameInfo<TPayload>> where TPayload : class
 {
-
     public Message Message { get; }
 
-    public TPayload? Payload { get; }
+    public TPayload Payload { get; }
 
-    public Action<TPayload, SerializationContext>? PayloadSerializer { get; }
+    public Action<TPayload, SerializationContext> PayloadSerializer { get; }
 
-    public FrameInfo(Message message, TPayload? payload, Action<TPayload, SerializationContext>? payloadSerializer)
+    public FrameInfo(Message message, TPayload payload, Action<TPayload, SerializationContext> payloadSerializer)
     {
         Message = message;
         Payload = payload;
         PayloadSerializer = payloadSerializer;
     }
 
-    public FrameInfo(Message message)
-    {
-        Message = message;
-        Payload = null;
-        PayloadSerializer = null;
-    }
-
     #region Equality semantic
+
     public bool Equals(FrameInfo<TPayload> other)
     {
-        return PayloadSerializer.Equals(other.PayloadSerializer) &&
-               Message.Equals(other.Message) &&
-               EqualityComparer<TPayload>.Default.Equals(Payload, other.Payload);
+        return Message.Equals(other.Message) && 
+               EqualityComparer<TPayload>.Default.Equals(Payload, other.Payload) && 
+               PayloadSerializer.Equals(other.PayloadSerializer);
     }
 
-    public override bool Equals(object? obj) => obj is FrameInfo<TPayload> other && Equals(other);
+    public override bool Equals(object? obj)
+    {
+        return obj is FrameInfo<TPayload> other && Equals(other);
+    }
 
-    public override int GetHashCode() => (Serializer: PayloadSerializer, Frame: Message, Payload).GetHashCode();
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            int hashCode = Message.GetHashCode();
+            hashCode = (hashCode * 397) ^ EqualityComparer<TPayload>.Default.GetHashCode(Payload);
+            hashCode = (hashCode * 397) ^ PayloadSerializer.GetHashCode();
+            return hashCode;
+        }
+    }
 
     public static bool operator ==(FrameInfo<TPayload> left, FrameInfo<TPayload> right) => left.Equals(right);
 
     public static bool operator !=(FrameInfo<TPayload> left, FrameInfo<TPayload> right) => !left.Equals(right);
-
+    
     #endregion
 }

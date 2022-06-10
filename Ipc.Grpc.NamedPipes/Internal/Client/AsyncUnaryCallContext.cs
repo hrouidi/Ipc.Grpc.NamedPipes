@@ -4,6 +4,7 @@ using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
+using Ipc.Grpc.NamedPipes.Internal.Helpers;
 using Ipc.Grpc.NamedPipes.TransportProtocol;
 
 namespace Ipc.Grpc.NamedPipes.Internal
@@ -87,14 +88,14 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public Status GetStatus() => _responseTrailers != null ? _status : throw new InvalidOperationException();
 
-        public void DisposeCall()
+        public async void DisposeCall()
         {
             try
             {
-                //_transport.SendCancelRequest();
-
                 _pipeStream.Dispose();
                 _cancelReg.Dispose();
+                await _transport.SendFrame(MessageBuilder.CancelRequest)
+                                .ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -106,7 +107,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             while (_pipeStream.IsConnected && token.IsCancellationRequested == false)
             {
-                Frame frame = await _transport.ReadFrame(token).ConfigureAwait(false);
+                using Frame frame = await _transport.ReadFrame(token).ConfigureAwait(false);
                 switch (frame.Message.DataCase)
                 {
                     case Message.DataOneofCase.Response:
