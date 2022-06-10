@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.Helpers
 {
@@ -55,17 +56,22 @@ namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.Helpers
 
             // Add services to the container.
             builder.Services.AddGrpc();
-            builder.WebHost.ConfigureKestrel(options =>
-            {
-                if (File.Exists(_socketPath))
-                    File.Delete(_socketPath);
-                options.ListenUnixSocket(_socketPath, listenOptions =>
-                {
-                    listenOptions.Protocols = HttpProtocols.Http2;
-                });
-            });
-
-
+            builder.WebHost
+                   .SuppressStatusMessages(true) 
+                   .ConfigureLogging((context, logging) =>
+                   {
+                       // this removes the logging from all providers (mostly console)
+                       logging.ClearProviders();
+                       //snip: providers where I want the logging to happen
+                   }).ConfigureKestrel(options =>
+                   {
+                       if (File.Exists(_socketPath))
+                           File.Delete(_socketPath);
+                       options.ListenUnixSocket(_socketPath, listenOptions =>
+                       {
+                           listenOptions.Protocols = HttpProtocols.Http2;
+                       });
+                   });
 
             WebApplication app = builder.Build();
 

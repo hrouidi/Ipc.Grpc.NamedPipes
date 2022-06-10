@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.Helpers;
 
-namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.TestCaseSource
+namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.CaseSources
 {
     class UnixDomainChannelFactorySource : IEnumerable<object[]>
     {

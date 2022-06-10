@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
 using Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.Helpers;
 
-namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.TestCaseSource
+namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.CaseSources
 {
     public class MultiChannelSource : IEnumerable<object[]>
     {
