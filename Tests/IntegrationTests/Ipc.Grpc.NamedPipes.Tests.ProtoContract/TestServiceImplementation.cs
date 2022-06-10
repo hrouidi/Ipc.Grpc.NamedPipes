@@ -141,5 +141,11 @@ namespace Ipc.Grpc.NamedPipes.Tests.ProtoContract
         public Metadata ResponseHeaders { private get; set; }
         
         public Metadata ResponseTrailers { private get; set; }
+
+        public Task<ResponseMessage> ModifyServerCallContext(RequestMessage request, ServerCallContext context)
+        {
+            context.Status = new Status(StatusCode.InvalidArgument, "invalid argument");
+            return Task.FromResult(new ResponseMessage());
+        }
     }
 }

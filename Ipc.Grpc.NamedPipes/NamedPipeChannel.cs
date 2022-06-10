@@ -18,15 +18,6 @@ namespace Ipc.Grpc.NamedPipes
             _options = options;
         }
 
-        private ClientConnectionContext<TRequest, TResponse> CreateConnectionContext<TRequest, TResponse>(
-            Method<TRequest, TResponse> method, CallOptions callOptions, TRequest request)
-            where TRequest : class where TResponse : class
-        {
-            NamedPipeClientStream stream = CreatePipeStream();
-            var ctx = new ClientConnectionContext<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, request);
-            return ctx;
-        }
-
         private NamedPipeClientStream CreatePipeStream()
         {
             var pipeOptions = PipeOptions.Asynchronous;
@@ -41,28 +32,23 @@ namespace Ipc.Grpc.NamedPipes
                 PipeDirection.InOut,
                 pipeOptions,
                 _options.ImpersonationLevel,
-                //System.Security.Principal.TokenImpersonationLevel.Anonymous, 
                 HandleInheritability.None);
             return stream;
         }
 
-
         public override TResponse BlockingUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method,
-            string host, CallOptions callOptions, TRequest request)
-            where TRequest : class
-            where TResponse : class
+            string host, CallOptions callOptions, TRequest request) where TRequest : class where TResponse : class
         {
             NamedPipeClientStream stream = CreatePipeStream();
-            var ctx = new AsyncUnaryCallContext<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, request);
+            var ctx = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, request);
             return ctx.GetResponseAsync().Result;
         }
 
-        public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string host, CallOptions callOptions, TRequest request)
-            where TRequest : class
-            where TResponse : class
+        public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string host, 
+            CallOptions callOptions, TRequest request) where TRequest : class where TResponse : class
         {
             NamedPipeClientStream stream = CreatePipeStream();
-            var ctx = new AsyncUnaryCallContext<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, request);
+            var ctx = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, request);
             return new AsyncUnaryCall<TResponse>(
                 ctx.GetResponseAsync(),
                 ctx.ResponseHeadersAsync,
@@ -73,14 +59,12 @@ namespace Ipc.Grpc.NamedPipes
 
         public override AsyncServerStreamingCall<TResponse> AsyncServerStreamingCall<TRequest, TResponse>(
             Method<TRequest, TResponse> method, string host, CallOptions callOptions,
-            TRequest request)
-            where TRequest : class
-            where TResponse : class
+            TRequest request) where TRequest : class where TResponse : class
         {
-            var ctx = CreateConnectionContext(method, callOptions, request);
-            ctx.Init();
+            NamedPipeClientStream stream = CreatePipeStream();
+            var ctx = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, request);
             return new AsyncServerStreamingCall<TResponse>(
-                ctx.GetResponseStreamReader(method.ResponseMarshaller),
+                ctx.GetResponseStreamReader(),
                 ctx.ResponseHeadersAsync,
                 ctx.GetStatus,
                 ctx.GetTrailers,
@@ -88,15 +72,13 @@ namespace Ipc.Grpc.NamedPipes
         }
 
         public override AsyncClientStreamingCall<TRequest, TResponse> AsyncClientStreamingCall<TRequest, TResponse>(
-            Method<TRequest, TResponse> method, string host, CallOptions callOptions)
-            where TRequest : class
-            where TResponse : class
+            Method<TRequest, TResponse> method, string host, CallOptions callOptions) where TRequest : class where TResponse : class
         {
-            var ctx = CreateConnectionContext(method, callOptions, null);
-            ctx.Init();
+            NamedPipeClientStream stream = CreatePipeStream();
+            var ctx = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, null);
             return new AsyncClientStreamingCall<TRequest, TResponse>(
-                ctx.GetRequestStreamWriter(method.RequestMarshaller),
-                ctx.ReadUnaryResponseAsync(method.ResponseMarshaller),
+                ctx.GetRequestStreamWriter(),
+                ctx.GetResponseAsync(),
                 ctx.ResponseHeadersAsync,
                 ctx.GetStatus,
                 ctx.GetTrailers,
@@ -104,15 +86,13 @@ namespace Ipc.Grpc.NamedPipes
         }
 
         public override AsyncDuplexStreamingCall<TRequest, TResponse> AsyncDuplexStreamingCall<TRequest, TResponse>(
-            Method<TRequest, TResponse> method, string host, CallOptions callOptions)
-            where TRequest : class
-            where TResponse : class
+            Method<TRequest, TResponse> method, string host, CallOptions callOptions) where TRequest : class where TResponse : class
         {
-            var ctx = CreateConnectionContext(method, callOptions, null);
-            ctx.Init();
+            NamedPipeClientStream stream = CreatePipeStream();
+            var ctx = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, null);
             return new AsyncDuplexStreamingCall<TRequest, TResponse>(
-                ctx.GetRequestStreamWriter(method.RequestMarshaller),
-                ctx.GetResponseStreamReader(method.ResponseMarshaller),
+                ctx.GetRequestStreamWriter2(),
+                ctx.GetResponseStreamReader2(),
                 ctx.ResponseHeadersAsync,
                 ctx.GetStatus,
                 ctx.GetTrailers,

@@ -39,18 +39,5 @@ namespace Ipc.Grpc.NamedPipes.Internal
         }
 
         public TMessage Current => SerializationHelpers.Deserialize(_marshaller, _payloadQueue.Current);
-
-        public Task<TMessage> ReadNextMessage(CancellationToken cancellationToken)
-        {
-            return Task.Run(async () =>
-            {
-                if (!await MoveNext(cancellationToken).ConfigureAwait(false))
-                {
-                    throw new InvalidOperationException("Expected payload");
-                }
-
-                return Current;
-            });
-        }
     }
 }

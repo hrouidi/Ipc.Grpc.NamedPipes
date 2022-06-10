@@ -9,7 +9,7 @@ using Ipc.Grpc.NamedPipes.TransportProtocol;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
-    internal class AsyncUnaryCallContext<TRequest, TResponse> where TRequest : class where TResponse : class
+    internal class ClientConnection<TRequest, TResponse> : IDisposable  where TRequest : class where TResponse : class
     {
         private readonly NamedPipeClientStream _pipeStream;
         private readonly CallOptions _callOptions;
@@ -25,19 +25,53 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private Metadata _responseTrailers;
         private Status _status;
 
-        public AsyncUnaryCallContext(NamedPipeClientStream pipeStream, CallOptions callOptions, int connectionTimeout, Method<TRequest, TResponse> method, TRequest request)
+        public ClientConnection(NamedPipeClientStream pipeStream, CallOptions callOptions, int connectionTimeout, Method<TRequest, TResponse> method, TRequest request)
         {
             _pipeStream = pipeStream;
             _callOptions = callOptions;
-            _transport = new NamedPipeTransportV3(_pipeStream);
-            _responseHeadersTcs = new TaskCompletionSource<Metadata>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _deadline = new Deadline(callOptions.Deadline);
             _connectionTimeout = connectionTimeout;
             _method = method;
             _request = request;
+
+            _deadline = new Deadline(callOptions.Deadline);
+            _transport = new NamedPipeTransportV3(_pipeStream);
+            _responseHeadersTcs = new TaskCompletionSource<Metadata>(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        public void Dispose()
+        {
+            _pipeStream?.Dispose();
+            _transport?.Dispose();
+            _cancelReg.Dispose();
         }
 
         public Task<Metadata> ResponseHeadersAsync => _responseHeadersTcs.Task;
+
+        public Status GetStatus() => _responseTrailers != null ? _status : throw new InvalidOperationException();
+
+        public Metadata GetTrailers() => _responseTrailers ?? throw new InvalidOperationException();
+
+        public async void DisposeCall()
+        {
+            try
+            {
+                _pipeStream.Dispose();
+                _cancelReg.Dispose();
+                await _transport.SendFrame(MessageBuilder.CancelRequest)
+                                .ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Assume the connection is already terminated
+            }
+        }
+
+        private void EnsureResponseHeadersSet(Metadata headers = null)
+        {
+            _responseHeadersTcs.TrySetResult(headers ?? new Metadata());
+        }
+
+        #region Unary Async
 
         public async Task<TResponse> GetResponseAsync()
         {
@@ -66,7 +100,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                     throw new RpcException(new Status(StatusCode.Unavailable, timeoutError.Message));
 
                 if (ex is IOException ioError)
-                    throw new RpcException(new Status(StatusCode.Unavailable, $"failed to connect to all addresses:{ioError.Message}"));
+                    throw new RpcException(new Status(StatusCode.Unavailable, $"failed to connect: {ioError.Message}"));
 
                 if (ex is OperationCanceledException)
                 {
@@ -81,25 +115,6 @@ namespace Ipc.Grpc.NamedPipes.Internal
             {
                 _pipeStream.Dispose();
                 _transport.Dispose();
-            }
-        }
-
-        public Metadata GetTrailers() => _responseTrailers ?? throw new InvalidOperationException();
-
-        public Status GetStatus() => _responseTrailers != null ? _status : throw new InvalidOperationException();
-
-        public async void DisposeCall()
-        {
-            try
-            {
-                _pipeStream.Dispose();
-                _cancelReg.Dispose();
-                await _transport.SendFrame(MessageBuilder.CancelRequest)
-                                .ConfigureAwait(false);
-            }
-            catch (Exception)
-            {
-                // Assume the connection is already terminated
             }
         }
 
@@ -139,9 +154,42 @@ namespace Ipc.Grpc.NamedPipes.Internal
             throw new InvalidProgramException();
         }
 
-        private void EnsureResponseHeadersSet(Metadata headers = null)
+        #endregion
+
+        #region Server streaming Async
+
+        public IAsyncStreamReader<TResponse> GetResponseStreamReader()
         {
-            _responseHeadersTcs.TrySetResult(headers ?? new Metadata());
+            throw new NotImplementedException();
+            //return new MessageStreamReader<TResponse>(_payloadChannel, responseMarshaller, _callOptions.CancellationToken, _deadline);
         }
+
+        #endregion
+
+        #region Client streaming Async
+
+        public IClientStreamWriter<TRequest> GetRequestStreamWriter()
+        {
+            throw new NotImplementedException();
+            //return new RequestStreamWriter<TRequest>(Transport, _callOptions.CancellationToken, requestMarshaller);
+        }
+
+        #endregion
+
+        #region Duplex streaming Async
+
+        public IAsyncStreamReader<TResponse> GetResponseStreamReader2()
+        {
+            throw new NotImplementedException();
+            //return new MessageStreamReader<TResponse>(_payloadChannel, responseMarshaller, _callOptions.CancellationToken, _deadline);
+        }
+
+        public IClientStreamWriter<TRequest> GetRequestStreamWriter2()
+        {
+            throw new NotImplementedException();
+            //return new RequestStreamWriter<TRequest>(Transport, _callOptions.CancellationToken, requestMarshaller);
+        }
+
+        #endregion
     }
 }
