@@ -30,4 +30,8 @@
       <ProjectReference Include="..\Ipc.Grpc.NamedPipes.Tests.ProtoContract\Ipc.Grpc.NamedPipes.Tests.ProtoContract.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="RemoteProcess\" />
+    </ItemGroup>
+
 </Project>
