@@ -92,7 +92,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
             using ChannelContext ctx = factory.Create();
 
             var bytes = new byte[300 * 1024 * 1024];
-            ByteString byteString = ByteString.CopyFrom(bytes);
+            ByteString byteString = UnsafeByteOperations.UnsafeWrap(bytes);
             ResponseMessage ret = null;
             var stopwatch = Stopwatch.StartNew();
             //for (int i = 0; i < 1000; i++)

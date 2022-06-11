@@ -20,6 +20,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         private readonly TaskCompletionSource<Metadata> _responseHeadersTcs;
         private readonly NamedPipeTransportV3 _transport;
+        private readonly CancellationTokenSource _disposeCts;
 
         private CancellationTokenRegistration _cancelReg;
         private Metadata _responseTrailers;
@@ -36,6 +37,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _deadline = new Deadline(callOptions.Deadline);
             _transport = new NamedPipeTransportV3(_pipeStream);
             _responseHeadersTcs = new TaskCompletionSource<Metadata>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _disposeCts = new CancellationTokenSource();
         }
 
         public void Dispose()
@@ -55,14 +57,21 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             try
             {
-                _pipeStream.Dispose();
-                _cancelReg.Dispose();
-                await _transport.SendFrame(MessageBuilder.CancelRequest)
-                                .ConfigureAwait(false);
+                _disposeCts.Cancel();
+                if (_isInServerSide)
+                {
+                    await _transport.SendFrame(MessageBuilder.CancelRequest)
+                                    .ConfigureAwait(false);
+                    Console.WriteLine("Debug : Cancel remote operation sent");
+                }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Assume the connection is already terminated
+                Console.WriteLine($"Cancel remote operation fail: {ex.Message}");
+            }
+            finally
+            {
+                Dispose();
             }
         }
 
@@ -73,39 +82,44 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         #region Unary Async
 
+        private volatile bool _isInServerSide;
+
+        private async ValueTask ConnectAsync(CancellationToken combined)
+        {
+            await _pipeStream.ConnectAsync(_connectionTimeout, combined)
+                             .ConfigureAwait(false);
+            _pipeStream.ReadMode = PipeTransmissionMode.Message;
+        }
+
         public async Task<TResponse> GetResponseAsync()
         {
-            var combined = CancellationTokenSource.CreateLinkedTokenSource(_callOptions.CancellationToken, _deadline.Token);
+            using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(_callOptions.CancellationToken, _deadline.Token, _disposeCts.Token);
+            CancellationToken combined = combinedCts.Token;
             try
             {
-                await _pipeStream.ConnectAsync(_connectionTimeout, combined.Token)
-                                 .ConfigureAwait(false);
+                await ConnectAsync(combined).ConfigureAwait(false);
 
-                _pipeStream.ReadMode = PipeTransmissionMode.Message;
-                Task<TResponse> readTask = ReadResponsePayload(combined.Token);
+                Task<TResponse> readTask = ReadResponsePayload(combined);
 
                 Message message = MessageBuilder.BuildRequest(_method, _callOptions.Deadline, _callOptions.Headers);
                 FrameInfo<TRequest> frameInfo = new(message, _request, _method.RequestMarshaller.ContextualSerializer);
-                await _transport.SendFrame(frameInfo, combined.Token)
+                await _transport.SendFrame(frameInfo, combined)
                                 .ConfigureAwait(false);
-
+                _isInServerSide = true;
                 //_cancelReg = _callOptions.CancellationToken.Register(DisposeCall);
                 TResponse ret = await readTask.ConfigureAwait(false);
                 return ret;
             }
             catch (Exception ex)
             {
-                if (ex is TimeoutException  or IOException )
-                    throw new RpcException(new Status(StatusCode.Unavailable, ex.Message));
-
-                if (ex is OperationCanceledException)
+                _isInServerSide = false;
+                throw ex switch
                 {
-                    if (_deadline.IsExpired)
-                        throw new RpcException(new Status(StatusCode.DeadlineExceeded, ""));
-                    throw new RpcException(Status.DefaultCancelled);
-                }
-
-                throw ex;
+                    TimeoutException or IOException => new RpcException(new Status(StatusCode.Unavailable, ex.Message)),
+                    OperationCanceledException when _deadline.IsExpired => new RpcException(new Status(StatusCode.DeadlineExceeded, "")),
+                    OperationCanceledException => new RpcException(Status.DefaultCancelled),
+                    _ => ex
+                };
             }
             finally
             {
@@ -121,7 +135,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 switch (frame.Message.DataCase)
                 {
                     case Message.DataOneofCase.Response:
-                        //may be it's a happy end: release pipe stream
+                        //maybe it's a happy end: release pipe stream
+                        _isInServerSide = false;
                         _pipeStream.Dispose();
 
                         Response response = frame.Message.Response;
@@ -142,6 +157,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                         EnsureResponseHeadersSet(headerMetadata);
                         break;
                     default:
+                        _isInServerSide = false;
                         _pipeStream.Dispose();
                         throw new ArgumentOutOfRangeException();
                 }

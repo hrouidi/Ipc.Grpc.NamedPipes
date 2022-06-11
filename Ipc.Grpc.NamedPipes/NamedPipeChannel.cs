@@ -1,5 +1,6 @@
 using System.IO;
 using System.IO.Pipes;
+using System.Threading.Tasks;
 using Grpc.Core;
 using Ipc.Grpc.NamedPipes.Internal;
 
@@ -11,7 +12,7 @@ namespace Ipc.Grpc.NamedPipes
         private readonly string _pipeName;
         private readonly NamedPipeChannelOptions _options;
 
-        public NamedPipeChannel(string pipeName, NamedPipeChannelOptions options) 
+        public NamedPipeChannel(string pipeName, NamedPipeChannelOptions options)
         {
             _serverName = ".";
             _pipeName = pipeName;
@@ -40,21 +41,25 @@ namespace Ipc.Grpc.NamedPipes
             string host, CallOptions callOptions, TRequest request) where TRequest : class where TResponse : class
         {
             NamedPipeClientStream stream = CreatePipeStream();
-            var ctx = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, request);
-            return ctx.GetResponseAsync().GetAwaiter().GetResult();
+            var connection = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, request);
+            return connection.GetResponseAsync()
+                             .GetAwaiter()
+                             .GetResult();
         }
 
-        public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string host, 
+        public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string host,
             CallOptions callOptions, TRequest request) where TRequest : class where TResponse : class
         {
             NamedPipeClientStream stream = CreatePipeStream();
-            var ctx = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, request);
+            var connection = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, request);
+
             return new AsyncUnaryCall<TResponse>(
-                ctx.GetResponseAsync(),
-                ctx.ResponseHeadersAsync,
-                ctx.GetStatus,
-                ctx.GetTrailers,
-                ctx.DisposeCall);
+                connection.GetResponseAsync(),
+                ResponseHeadersAsync<TRequest, TResponse>,
+                GetStatus<TRequest, TResponse>,
+                GetTrailers<TRequest, TResponse>,
+                Dispose<TRequest, TResponse>,
+                connection);
         }
 
         public override AsyncServerStreamingCall<TResponse> AsyncServerStreamingCall<TRequest, TResponse>(
@@ -62,41 +67,59 @@ namespace Ipc.Grpc.NamedPipes
             TRequest request) where TRequest : class where TResponse : class
         {
             NamedPipeClientStream stream = CreatePipeStream();
-            var ctx = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, request);
+            var connection = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, request);
+
             return new AsyncServerStreamingCall<TResponse>(
-                ctx.GetResponseStreamReader(),
-                ctx.ResponseHeadersAsync,
-                ctx.GetStatus,
-                ctx.GetTrailers,
-                ctx.DisposeCall);
+                connection.GetResponseStreamReader(),
+                ResponseHeadersAsync<TRequest, TResponse>,
+                GetStatus<TRequest, TResponse>,
+                GetTrailers<TRequest, TResponse>,
+                Dispose<TRequest, TResponse>,
+                connection);
         }
 
         public override AsyncClientStreamingCall<TRequest, TResponse> AsyncClientStreamingCall<TRequest, TResponse>(
             Method<TRequest, TResponse> method, string host, CallOptions callOptions) where TRequest : class where TResponse : class
         {
             NamedPipeClientStream stream = CreatePipeStream();
-            var ctx = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, null);
+            var connection = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, null);
+
             return new AsyncClientStreamingCall<TRequest, TResponse>(
-                ctx.GetRequestStreamWriter(),
-                ctx.GetResponseAsync(),
-                ctx.ResponseHeadersAsync,
-                ctx.GetStatus,
-                ctx.GetTrailers,
-                ctx.DisposeCall);
+                connection.GetRequestStreamWriter(),
+                connection.GetResponseAsync(),
+                ResponseHeadersAsync<TRequest, TResponse>,
+                GetStatus<TRequest, TResponse>,
+                GetTrailers<TRequest, TResponse>,
+                Dispose<TRequest, TResponse>,
+                connection);
         }
 
         public override AsyncDuplexStreamingCall<TRequest, TResponse> AsyncDuplexStreamingCall<TRequest, TResponse>(
             Method<TRequest, TResponse> method, string host, CallOptions callOptions) where TRequest : class where TResponse : class
         {
             NamedPipeClientStream stream = CreatePipeStream();
-            var ctx = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, null);
+            var connection = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, null);
+
             return new AsyncDuplexStreamingCall<TRequest, TResponse>(
-                ctx.GetRequestStreamWriter2(),
-                ctx.GetResponseStreamReader2(),
-                ctx.ResponseHeadersAsync,
-                ctx.GetStatus,
-                ctx.GetTrailers,
-                ctx.DisposeCall);
+                connection.GetRequestStreamWriter2(),
+                connection.GetResponseStreamReader2(),
+                ResponseHeadersAsync<TRequest, TResponse>,
+                GetStatus<TRequest, TResponse>,
+                GetTrailers<TRequest, TResponse>,
+                Dispose<TRequest, TResponse>,
+                connection);
         }
+
+        private static Task<Metadata> ResponseHeadersAsync<TRequest, TResponse>(object x) where TRequest : class where TResponse : class
+            => ((ClientConnection<TRequest, TResponse>)x).ResponseHeadersAsync;
+
+        private static Status GetStatus<TRequest, TResponse>(object x) where TRequest : class where TResponse : class
+            => ((ClientConnection<TRequest, TResponse>)x).GetStatus();
+
+        private static Metadata GetTrailers<TRequest, TResponse>(object x) where TRequest : class where TResponse : class
+            => ((ClientConnection<TRequest, TResponse>)x).GetTrailers();
+
+        private static void Dispose<TRequest, TResponse>(object x) where TRequest : class where TResponse :
+            class => ((ClientConnection<TRequest, TResponse>)x).DisposeCall();
     }
 }

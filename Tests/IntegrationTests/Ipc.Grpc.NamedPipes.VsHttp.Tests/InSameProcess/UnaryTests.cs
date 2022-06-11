@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Linq;
 using System.Security.AccessControl;
@@ -20,7 +21,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
-        public void SimpleUnary(ChannelContextFactory factory)
+        public void BlockingCallTest(ChannelContextFactory factory)
         {
             using ChannelContext ctx = factory.Create();
             ResponseMessage response = ctx.Client.SimpleUnary(new RequestMessage { Value = 10 });
@@ -30,7 +31,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
-        public async Task SimpleUnaryAsync(ChannelContextFactory factory)
+        public async Task AsyncCallTest(ChannelContextFactory factory)
         {
             using ChannelContext ctx = factory.Create();
             ResponseMessage response = await ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 10 });
@@ -40,43 +41,199 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
-        public async Task LargePayload(ChannelContextFactory factory)
+        public async Task LargePayloadTest(ChannelContextFactory factory)
         {
             var bytes = new byte[1024 * 1024];
             new Random(1234).NextBytes(bytes);
-            ByteString byteString = ByteString.CopyFrom(bytes);
+
+            ByteString byteString = UnsafeByteOperations.UnsafeWrap(bytes);
 
             using ChannelContext ctx = factory.Create();
             ResponseMessage response = await ctx.Client.SimpleUnaryAsync(new RequestMessage { Binary = byteString });
             Assert.That(response.Binary, Is.EqualTo(byteString));
         }
 
-        [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(MultiChannelSource))]
-        public Task CancelUnary(ChannelContextFactory factory)
-        {
-            using ChannelContext ctx = factory.Create();
-            var cts = new CancellationTokenSource();
-            var responseTask = ctx.Client.DelayedUnaryAsync(new RequestMessage { Value = 10 }, cancellationToken: cts.Token);
-            cts.Cancel();
-            var exception = Assert.ThrowsAsync<RpcException>(async () => await responseTask);
-            Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Cancelled));
-            return Task.CompletedTask;
-        }
+        #region Cancel tests
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
-        public Task CancelUnaryBeforeCall(ChannelContextFactory factory)
+        public Task CancelBeforeCall(ChannelContextFactory factory)
         {
             using ChannelContext ctx = factory.Create();
             var cts = new CancellationTokenSource();
             cts.Cancel();
             var responseTask = ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 10 }, cancellationToken: cts.Token);
             var exception = Assert.ThrowsAsync<RpcException>(async () => await responseTask);
-            Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Cancelled));
+            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
             Assert.False(ctx.Impl.SimplyUnaryCalled);
             return Task.CompletedTask;
         }
+
+        [Test, Timeout(TestTimeout)]
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public Task CancelBeforeWaitingResponse(ChannelContextFactory factory)
+        {
+            using ChannelContext ctx = factory.Create();
+            var cts = new CancellationTokenSource();
+            var responseTask = ctx.Client.DelayedUnaryAsync(new RequestMessage { Value = 10 }, cancellationToken: cts.Token);
+            cts.Cancel();
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await responseTask);
+            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
+            return Task.CompletedTask;
+        }
+
+        [Test, Timeout(TestTimeout)]
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public Task CancelBeforeServiceFault(ChannelContextFactory factory)
+        {
+            using ChannelContext ctx = factory.Create();
+            var cts = new CancellationTokenSource();
+            var responseTask = ctx.Client.DelayedThrowingUnaryAsync(new RequestMessage { Value = 10 }, cancellationToken: cts.Token);
+            cts.Cancel();
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await responseTask);
+            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
+            return Task.CompletedTask;
+        }
+
+        [Test, Timeout(TestTimeout)]
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public async Task CancellationRaceTest(ChannelContextFactory factory)
+        {
+            using ChannelContext ctx = factory.Create();
+            var random = new Random();
+            var bytes = new byte[1024 * 1024];
+            random.NextBytes(bytes);
+            ByteString byteString = UnsafeByteOperations.UnsafeWrap(bytes);
+            var request = new RequestMessage { Binary = byteString };
+
+            var averageExecutionTime = (int)await MeasureCallTime();
+            Assert.IsTrue(averageExecutionTime > 0, "test is not conclusive");
+            int iterationCount = averageExecutionTime * 10;
+            for (int i = 0; i < iterationCount; i++)
+            {
+                var cts = new CancellationTokenSource(random.Next(averageExecutionTime));
+                try
+                {
+                    ResponseMessage response = await ctx.Client.SimpleUnaryAsync(request, cancellationToken: cts.Token);
+                }
+                catch (RpcException ex)
+                {
+                    Assert.That(ex.StatusCode, Is.EqualTo(StatusCode.Cancelled));
+                }
+            }
+
+            async Task<long> MeasureCallTime()
+            {
+                var stopwatch = Stopwatch.StartNew();
+                ResponseMessage response = await ctx.Client.SimpleUnaryAsync(request, cancellationToken: CancellationToken.None);
+                stopwatch.Stop();
+                Assert.That(response.Binary, Is.EqualTo(byteString));
+                Console.WriteLine($"Average execution time for {nameof(ctx.Client.SimpleUnaryAsync)} : {stopwatch.ElapsedMilliseconds} ms ");
+                return stopwatch.ElapsedMilliseconds;
+            }
+        }
+
+        #endregion
+
+        #region Dispose tests
+
+        [Test, Timeout(TestTimeout)]
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public async Task Dispose_ManyTimes_Test(ChannelContextFactory factory)
+        {
+            using ChannelContext ctx = factory.Create();
+            var responseTask = ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 10 });
+            ResponseMessage response = await responseTask;
+            responseTask.Dispose();
+            responseTask.Dispose();
+            responseTask.Dispose();
+            Assert.That(response.Value, Is.EqualTo(10));
+
+            responseTask = ctx.Client.DelayedUnaryAsync(new RequestMessage { Value = 10 });
+            responseTask.Dispose();
+            responseTask.Dispose();
+            responseTask.Dispose();
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await responseTask);
+            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
+        }
+
+
+        [Test, Timeout(TestTimeout)]
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public Task DisposeBeforeAwaiting_ShouldThrowCanceledRpcException_Test(ChannelContextFactory factory)
+        {
+            using ChannelContext ctx = factory.Create();
+            var responseTask = ctx.Client.DelayedUnaryAsync(new RequestMessage { Value = 10 });
+            responseTask.Dispose();
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await responseTask);
+            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
+            return Task.CompletedTask;
+        }
+
+        [Test, Timeout(TestTimeout)]
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public async Task DisposeAfterAwaiting_ShouldNotDoAnything_Test(ChannelContextFactory factory)
+        {
+            using ChannelContext ctx = factory.Create();
+            var responseTask = ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 10 });
+            ResponseMessage response = await responseTask.ResponseAsync;
+            responseTask.Dispose();
+            Assert.That(response.Value, Is.EqualTo(10));
+        }
+
+        [Test, Timeout(TestTimeout)]
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public async Task DisposeWhileAwaiting_ShouldSendCancelRemoteAndThrowCanceledRpcException_Test(ChannelContextFactory factory)
+        {
+            Assert.Fail("Fix conditions");
+            using ChannelContext ctx = factory.Create();
+            var call = ctx.Client.DelayedUnaryAsync(new RequestMessage { Value = 1000 }); //wait for 100 ms
+
+            Task task = Task.WhenAll(call.ResponseAsync, DisposeAfter(call, 100));
+
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await task);
+            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
+
+            static async Task DisposeAfter(IDisposable call, int ms)
+            {
+                await Task.Delay(ms);
+                call.Dispose();
+            }
+        }
+
+
+        #endregion
+
+        #region Deadline tests
+
+        [Test, Timeout(TestTimeout)]
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public Task Deadline(ChannelContextFactory factory)
+        {
+            using ChannelContext ctx = factory.Create();
+            DateTime deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(1);
+            var call = ctx.Client.DelayedUnaryAsync(new RequestMessage { Value = 1000 }, deadline: deadline);
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await call);
+            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.DeadlineExceeded));
+            return Task.CompletedTask;
+        }
+
+        [Test, Timeout(TestTimeout)]
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public Task AlreadyExpiredDeadline(ChannelContextFactory factory)
+        {
+            using ChannelContext ctx = factory.Create();
+            DateTime deadline = DateTime.UtcNow - TimeSpan.FromSeconds(0.1);
+            var call = ctx.Client.SimpleUnaryAsync(new RequestMessage(), deadline: deadline);
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await call);
+            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.DeadlineExceeded));
+            Assert.False(ctx.Impl.SimplyUnaryCalled);
+            return Task.CompletedTask;
+        }
+
+        #endregion
+
+        #region Catching service implementation exceptions tests
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
@@ -116,20 +273,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             return Task.CompletedTask;
         }
 
-        [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(MultiChannelSource))]
-        public Task ThrowAfterCancelUnary(ChannelContextFactory factory)
-        {
-            using ChannelContext ctx = factory.Create();
-            var cts = new CancellationTokenSource();
-            var responseTask =
-                ctx.Client.DelayedThrowingUnaryAsync(new RequestMessage { Value = 10 }, cancellationToken: cts.Token);
-            cts.Cancel();
-            var exception = Assert.ThrowsAsync<RpcException>(async () => await responseTask);
-            Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Cancelled));
-            return Task.CompletedTask;
-        }
-        
+        #endregion
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
@@ -140,31 +284,6 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             var exception = Assert.ThrowsAsync<RpcException>(async () => await call);
             Assert.That(exception.Status.StatusCode, Is.EqualTo(StatusCode.InvalidArgument));
             Assert.That(exception.Status.Detail, Is.EqualTo("invalid argument"));
-            return Task.CompletedTask;
-        }
-
-        [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(MultiChannelSource))]
-        public Task Deadline(ChannelContextFactory factory)
-        {
-            using ChannelContext ctx = factory.Create();
-            DateTime deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(1);
-            var call = ctx.Client.DelayedUnaryAsync(new RequestMessage(), deadline: deadline);
-            var exception = Assert.ThrowsAsync<RpcException>(async () => await call);
-            Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.DeadlineExceeded));
-            return Task.CompletedTask;
-        }
-
-        [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(MultiChannelSource))]
-        public Task AlreadyExpiredDeadline(ChannelContextFactory factory)
-        {
-            using ChannelContext ctx = factory.Create();
-            DateTime deadline = DateTime.UtcNow - TimeSpan.FromSeconds(0.1);
-            var call = ctx.Client.SimpleUnaryAsync(new RequestMessage(), deadline: deadline);
-            var exception = Assert.ThrowsAsync<RpcException>(async () => await call);
-            Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.DeadlineExceeded));
-            Assert.False(ctx.Impl.SimplyUnaryCalled);
             return Task.CompletedTask;
         }
 
@@ -199,30 +318,13 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             Status actualStatus = call.GetStatus();
             Metadata actualRequestHeaders = ctx.Impl.RequestHeaders;
 
-            AssertHasMetadata(requestHeaders, actualRequestHeaders);
-            AssertHasMetadata(responseHeaders, actualResponseHeaders);
-            AssertHasMetadata(responseTrailers, actualResponseTrailers);
+            MetadataAssert.AreEquivalent(requestHeaders, actualRequestHeaders);
+            MetadataAssert.AreEquivalent(responseHeaders, actualResponseHeaders);
+            MetadataAssert.AreEquivalent(responseTrailers, actualResponseTrailers);
             Assert.That(actualStatus.StatusCode, Is.EqualTo(StatusCode.OK));
         }
 
-        private void AssertHasMetadata(Metadata expected, Metadata actual)
-        {
-            var actualDict = actual.ToDictionary(x => x.Key);
-            foreach (Metadata.Entry expectedEntry in expected)
-            {
-                Assert.True(actualDict.ContainsKey(expectedEntry.Key));
-                Metadata.Entry actualEntry = actualDict[expectedEntry.Key];
-                Assert.That(actualEntry.IsBinary, Is.EqualTo(expectedEntry.IsBinary));
-                if (expectedEntry.IsBinary)
-                {
-                    Assert.That(actualEntry.ValueBytes.AsEnumerable(), Is.EqualTo(expectedEntry.ValueBytes.AsEnumerable()));
-                }
-                else
-                {
-                    Assert.That(actualEntry.Value, Is.EqualTo(expectedEntry.Value));
-                }
-            }
-        }
+        //TODO:  move to separate channel/server tests
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
@@ -230,28 +332,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
         {
             TestService.TestServiceClient client = factory.CreateClient();
             var exception = Assert.Throws<RpcException>(() => client.SimpleUnary(new RequestMessage { Value = 10 }));
-            Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Unavailable));
-        }
-
-        [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(GrpcDotNetNamedPipesChannelSource))]
-        public async Task CancellationRace(GrpcDotNetNamedPipesChannelFactory factory)
-        {
-            using ChannelContext ctx = factory.Create();
-            var random = new Random();
-            for (int i = 0; i < 200; i++)
-            {
-                var cts = new CancellationTokenSource(random.Next(10));
-                var response = ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 10 }, cancellationToken: cts.Token);
-                try
-                {
-                    Assert.That((await response).Value, Is.EqualTo(10));
-                }
-                catch (RpcException ex)
-                {
-                    Assert.That(ex.StatusCode, Is.EqualTo(StatusCode.Cancelled));
-                }
-            }
+            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Unavailable));
         }
 
         [Test, Timeout(TestTimeout)]
@@ -297,6 +378,8 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             Assert.That(response2.Value, Is.EqualTo(10));
         }
 
+        #region  ACL tests 
+
 #if NET_5_0 || NETFRAMEWORK
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(GrpcDotNetNamedPipesChannelSource))]
@@ -330,5 +413,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             var exception = Assert.Throws<UnauthorizedAccessException>(() => ctx.Client.SimpleUnary(new RequestMessage { Value = 10 }));
         }
 #endif
+
+        #endregion
     }
 }

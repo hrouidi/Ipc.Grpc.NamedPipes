@@ -186,7 +186,9 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         private void HandleCancel()
         {
+            Console.WriteLine("Debug : Cancel current operation requested");
             CancellationTokenSource.Cancel();
+            Console.WriteLine("Debug : Current operation cancelled");
         }
 
         #endregion

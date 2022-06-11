@@ -25,7 +25,7 @@ namespace Ipc.Grpc.NamedPipes.Tests.ProtoContract
 
         public override async Task<ResponseMessage> DelayedUnary(RequestMessage request, ServerCallContext context)
         {
-            await Task.Delay(2000, context.CancellationToken);
+            await Task.Delay(request.Value, context.CancellationToken);
             return new ResponseMessage();
         }
 
