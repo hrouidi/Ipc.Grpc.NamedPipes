@@ -9,8 +9,8 @@ using System.Threading.Tasks;
 using Google.Protobuf;
 using Grpc.Core;
 using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
+using Ipc.Grpc.NamedPipes.VsHttp.Tests.CaseSources;
 using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
-using Ipc.Grpc.NamedPipes.VsHttp.Tests.TestCaseSource;
 using NUnit.Framework;
 
 namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
@@ -99,6 +99,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task CancellationRaceTest(ChannelContextFactory factory)
         {
+            //TODO: Fix me
             using ChannelContext ctx = factory.Create();
             var random = new Random();
             var bytes = new byte[1024 * 1024];
@@ -172,7 +173,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
-        public async Task DisposeAfterAwaiting_ShouldNotDoAnything_Test(ChannelContextFactory factory)
+        public async Task DisposeAfterAwaiting_ShouldDoNothing_Test(ChannelContextFactory factory)
         {
             using ChannelContext ctx = factory.Create();
             var responseTask = ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 10 });
@@ -182,17 +183,18 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
         }
 
         [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(MultiChannelSource))]
+        [TestCaseSource(typeof(NamedPipeChannelSource))]
         public async Task DisposeWhileAwaiting_ShouldSendCancelRemoteAndThrowCanceledRpcException_Test(ChannelContextFactory factory)
         {
-            Assert.Fail("Fix conditions");
+            Assert.Fail("Fix conditions: wait for the first response streaming item and then dispose the call :)");
             using ChannelContext ctx = factory.Create();
-            var call = ctx.Client.DelayedUnaryAsync(new RequestMessage { Value = 1000 }); //wait for 100 ms
+            var call = ctx.Client.DelayedUnaryAsync(new RequestMessage { Value = 10 }); //wait for 100 ms
+            Task.Delay(100000).Wait();
 
-            Task task = Task.WhenAll(call.ResponseAsync, DisposeAfter(call, 100));
+            //Task task = Task.WhenAll(call.ResponseAsync, DisposeAfter(call, 900));
 
-            var exception = Assert.ThrowsAsync<RpcException>(async () => await task);
-            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
+            //var exception = Assert.ThrowsAsync<RpcException>(async () => await task);
+            //Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
 
             static async Task DisposeAfter(IDisposable call, int ms)
             {

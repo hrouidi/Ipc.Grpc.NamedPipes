@@ -6,7 +6,6 @@ using Google.Protobuf;
 using Grpc.Core;
 using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
 using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
-using Ipc.Grpc.NamedPipes.VsHttp.Tests.TestCaseSource;
 using NUnit.Framework;
 using MultiChannelSource = Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.CaseSources.MultiChannelSource;
 
@@ -232,8 +231,8 @@ namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.InSameProcess
         }
 
         [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(GrpcDotNetNamedPipesChannelSource))]
-        public async Task CancellationRace(GrpcDotNetNamedPipesChannelFactory factory)
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public async Task CancellationRace(ChannelContextFactory factory)
         {
             using ChannelContext ctx = factory.Create();
             var random = new Random();
@@ -253,8 +252,8 @@ namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.InSameProcess
         }
 
         [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(GrpcDotNetNamedPipesChannelSource))]
-        public void CallImmediatelyAfterKillingServer(GrpcDotNetNamedPipesChannelFactory factory)
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public void CallImmediatelyAfterKillingServer(ChannelContextFactory factory)
         {
             using ChannelContext ctx = factory.Create();
             ctx.Dispose();

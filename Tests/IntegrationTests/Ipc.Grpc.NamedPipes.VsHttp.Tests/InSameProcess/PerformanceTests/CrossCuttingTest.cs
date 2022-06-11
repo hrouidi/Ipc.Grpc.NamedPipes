@@ -2,8 +2,8 @@ using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
+using Ipc.Grpc.NamedPipes.VsHttp.Tests.CaseSources;
 using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
-using Ipc.Grpc.NamedPipes.VsHttp.Tests.TestCaseSource;
 using NUnit.Framework;
 
 namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests

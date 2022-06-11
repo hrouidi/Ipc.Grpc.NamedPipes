@@ -22,7 +22,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly NamedPipeTransportV3 _transport;
         private readonly CancellationTokenSource _disposeCts;
 
-        private CancellationTokenRegistration _cancelReg;
+        private int _isInServerSide;// 1 : true,0 : false
         private Metadata _responseTrailers;
         private Status _status;
 
@@ -44,7 +44,6 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             _pipeStream?.Dispose();
             _transport?.Dispose();
-            _cancelReg.Dispose();
         }
 
         public Task<Metadata> ResponseHeadersAsync => _responseHeadersTcs.Task;
@@ -58,7 +57,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             try
             {
                 _disposeCts.Cancel();
-                if (_isInServerSide)
+                if (Interlocked.CompareExchange(ref _isInServerSide, 0, 1) == 1)
                 {
                     await _transport.SendFrame(MessageBuilder.CancelRequest)
                                     .ConfigureAwait(false);
@@ -82,22 +81,15 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         #region Unary Async
 
-        private volatile bool _isInServerSide;
-
-        private async ValueTask ConnectAsync(CancellationToken combined)
-        {
-            await _pipeStream.ConnectAsync(_connectionTimeout, combined)
-                             .ConfigureAwait(false);
-            _pipeStream.ReadMode = PipeTransmissionMode.Message;
-        }
-
         public async Task<TResponse> GetResponseAsync()
         {
             using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(_callOptions.CancellationToken, _deadline.Token, _disposeCts.Token);
             CancellationToken combined = combinedCts.Token;
             try
             {
-                await ConnectAsync(combined).ConfigureAwait(false);
+                await _pipeStream.ConnectAsync(_connectionTimeout, combined)
+                                 .ConfigureAwait(false);
+                _pipeStream.ReadMode = PipeTransmissionMode.Message;
 
                 Task<TResponse> readTask = ReadResponsePayload(combined);
 
@@ -105,14 +97,16 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 FrameInfo<TRequest> frameInfo = new(message, _request, _method.RequestMarshaller.ContextualSerializer);
                 await _transport.SendFrame(frameInfo, combined)
                                 .ConfigureAwait(false);
-                _isInServerSide = true;
-                //_cancelReg = _callOptions.CancellationToken.Register(DisposeCall);
+
+                //IsInServerSide = true;
+                Interlocked.Exchange(ref _isInServerSide, 1);
+                using CancellationTokenRegistration cancellationRegistration = _callOptions.CancellationToken.Register(DisposeCall);
                 TResponse ret = await readTask.ConfigureAwait(false);
                 return ret;
             }
             catch (Exception ex)
             {
-                _isInServerSide = false;
+                Interlocked.Exchange(ref _isInServerSide, 0);
                 throw ex switch
                 {
                     TimeoutException or IOException => new RpcException(new Status(StatusCode.Unavailable, ex.Message)),
@@ -129,14 +123,15 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         private async Task<TResponse> ReadResponsePayload(CancellationToken token)
         {
-            while (_pipeStream.IsConnected && token.IsCancellationRequested == false)
+            //while (_pipeStream.IsConnected && token.IsCancellationRequested == false)
+            while (true)
             {
                 using Frame frame = await _transport.ReadFrame(token).ConfigureAwait(false);
                 switch (frame.Message.DataCase)
                 {
                     case Message.DataOneofCase.Response:
                         //maybe it's a happy end: release pipe stream
-                        _isInServerSide = false;
+                        Interlocked.Exchange(ref _isInServerSide, 0);// server has complete
                         _pipeStream.Dispose();
 
                         Response response = frame.Message.Response;
@@ -156,14 +151,17 @@ namespace Ipc.Grpc.NamedPipes.Internal
                         var headerMetadata = MessageBuilder.ToMetadata(frame.Message.ResponseHeaders.Metadata);
                         EnsureResponseHeadersSet(headerMetadata);
                         break;
+                    case Message.DataOneofCase.None:
+                    case Message.DataOneofCase.Request:
+                    case Message.DataOneofCase.RequestControl:
                     default:
-                        _isInServerSide = false;
+                        Interlocked.Exchange(ref _isInServerSide, 0);
                         _pipeStream.Dispose();
                         throw new ArgumentOutOfRangeException();
                 }
             }
-
-            throw new InvalidProgramException();
+            //TODO : fix this
+            //throw new InvalidProgramException();
         }
 
         #endregion

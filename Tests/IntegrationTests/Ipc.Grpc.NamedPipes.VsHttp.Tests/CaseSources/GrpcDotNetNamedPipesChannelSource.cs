@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
 
-namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.TestCaseSource
+namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.CaseSources
 {
     public class GrpcDotNetNamedPipesChannelSource : IEnumerable<object[]>
     {
