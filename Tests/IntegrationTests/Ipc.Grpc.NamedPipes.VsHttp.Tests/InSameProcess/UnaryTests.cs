@@ -245,7 +245,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             var responseTask = ctx.Client.ThrowingUnaryAsync(new RequestMessage { Value = 10 });
             var exception = Assert.ThrowsAsync<RpcException>(async () => await responseTask);
             Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Unknown));
-            Assert.That(exception.Status.Detail, Is.EqualTo("Exception was thrown by handler."));
+            StringAssert.StartsWith("Exception was thrown by handler", exception.Status.Detail);
             return Task.CompletedTask;
         }
 
@@ -258,7 +258,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             var responseTask = ctx.Client.ThrowingUnaryAsync(new RequestMessage { Value = 10 });
             var exception = Assert.ThrowsAsync<RpcException>(async () => await responseTask);
             Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Unknown));
-            Assert.That(exception.Status.Detail, Is.EqualTo("Exception was thrown by handler."));
+            StringAssert.StartsWith("Exception was thrown by handler", exception.Status.Detail);
             return Task.CompletedTask;
         }
 

@@ -40,13 +40,18 @@ namespace Ipc.Grpc.NamedPipes.Internal
             Debug.Assert(readBytes == header.TotalSize - FrameHeader.Size, "Client is a layer !");
             Debug.Assert(_pipeStream.IsMessageComplete, "Unexpected message :too long!");
 
-            Message? message = Message.Parser.ParseFrom(framePlusPayloadBytes.Span.Slice(0, header.MessageSize));
+
+            //Message? message = Message.Parser.ParseFrom(framePlusPayloadBytes.Span.Slice(0, header.MessageSize));
+            var payloadBytes = framePlusPayloadBytes.Slice(header.MessageSize);
+            
+            Message message = new(payloadBytes, owner);
+            message.MergeFrom(framePlusPayloadBytes.Span.Slice(0, header.MessageSize));
             //if (header.PayloadSize == 0)
             //{
             //    owner.Dispose();
             //    return (message, null, null);
             //}
-            var payloadBytes = framePlusPayloadBytes.Slice(header.MessageSize);
+            //var payloadBytes = framePlusPayloadBytes.Slice(header.MessageSize);
             var packet = new Frame(message, payloadBytes, owner);
             return packet;
         }

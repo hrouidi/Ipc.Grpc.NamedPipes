@@ -61,6 +61,20 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
+        public async Task DisposeWhileAwaiting_ShouldSendCancelRemoteAndThrowCanceledRpcException_Test(ChannelContextFactory factory)
+        {
+
+            using ChannelContext ctx = factory.Create();
+            AsyncServerStreamingCall<ResponseMessage> call = ctx.Client.DelayedServerStreaming(new RequestMessage { Value = 3 });
+            Assert.True(await call.ResponseStream.MoveNext());
+            call.Dispose();
+
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseStream.MoveNext());
+            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
+        }
+
+        [Test, Timeout(TestTimeout)]
+        [TestCaseSource(typeof(MultiChannelSource))]
         public async Task ThrowingServerStreaming(ChannelContextFactory factory)
         {
             using var ctx = factory.Create();
@@ -166,30 +180,10 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             var actualStatus = call.GetStatus();
             var actualRequestHeaders = ctx.Impl.RequestHeaders;
 
-            AssertHasMetadata(requestHeaders, actualRequestHeaders);
-            AssertHasMetadata(responseHeaders, actualResponseHeaders);
-            AssertHasMetadata(responseTrailers, actualResponseTrailers);
+            MetadataAssert.AreEquivalent(requestHeaders, actualRequestHeaders);
+            MetadataAssert.AreEquivalent(responseHeaders, actualResponseHeaders);
+            MetadataAssert.AreEquivalent(responseTrailers, actualResponseTrailers);
             Assert.That(actualStatus.StatusCode, Is.EqualTo(StatusCode.OK));
         }
-
-        private void AssertHasMetadata(Metadata expected, Metadata actual)
-        {
-            var actualDict = actual.ToDictionary(x => x.Key);
-            foreach (var expectedEntry in expected)
-            {
-                Assert.True(actualDict.ContainsKey(expectedEntry.Key));
-                var actualEntry = actualDict[expectedEntry.Key];
-                Assert.That(actualEntry.IsBinary, Is.EqualTo(expectedEntry.IsBinary));
-                if (expectedEntry.IsBinary)
-                {
-                    Assert.That(actualEntry.ValueBytes.AsEnumerable(), Is.EqualTo(expectedEntry.ValueBytes.AsEnumerable()));
-                }
-                else
-                {
-                    Assert.That(actualEntry.Value, Is.EqualTo(expectedEntry.Value));
-                }
-            }
-        }
-
     }
 }

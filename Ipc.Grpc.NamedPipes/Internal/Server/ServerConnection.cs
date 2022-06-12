@@ -13,7 +13,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
     internal class ServerConnection : IDisposable
     {
         private readonly IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> _methodHandlers;
-        private readonly PayloadChannel<byte[]> _payloadChannel;
+        //private readonly MessageChannel<Frame> _messageChannel;
         private readonly NamedPipeServerStream _pipeStream;
         private readonly NamedPipeTransportV3 _transport;
 
@@ -35,7 +35,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _pipeStream = pipeStream;
             _transport = new NamedPipeTransportV3(pipeStream);
             _methodHandlers = methodHandlers;
-            _payloadChannel = new PayloadChannel<byte[]>();
+            //_messageChannel = new MessageChannel<Frame>();
             CancellationTokenSource = new CancellationTokenSource();
 
             Deadline = Deadline.None;
@@ -160,7 +160,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 if (ex is RpcException rpcException)
                     return (rpcException.StatusCode, rpcException.Status.Detail);
 
-                return (StatusCode.Unknown, "Exception was thrown by handler.");
+                return (StatusCode.Unknown, $"Exception was thrown by handler: {ex.Message}");
             }
         }
 
@@ -177,12 +177,12 @@ namespace Ipc.Grpc.NamedPipes.Internal
             await _methodHandlers[request.MethodFullName](this).ConfigureAwait(false);
         }
 
-        private ValueTask HandleRequestStreamPayload(byte[] payload) => _payloadChannel.Append(payload);
+        //private ValueTask HandleRequestStreamPayload(Frame payload) => _messageChannel.Append(payload);
 
-        private ValueTask HandleRequestStreamEnd()
-        {
-            return _payloadChannel.SetCompleted();
-        }
+        //private ValueTask HandleRequestStreamEnd()
+        //{
+        //    return _messageChannel.SetCompleted();
+        //}
 
         private void HandleCancel()
         {

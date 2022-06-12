@@ -7,6 +7,8 @@ using Ipc.Grpc.NamedPipes.TransportProtocol;
 
 namespace Ipc.Grpc.NamedPipes.Internal;
 
+
+//TODO: replace by Message class (partial class extended)
 internal sealed class Frame : IDisposable//where TPayload : class 
 {
     private readonly IMemoryOwner<byte> _memoryOwner;
@@ -31,6 +33,7 @@ internal sealed class Frame : IDisposable//where TPayload : class
     public void Dispose() => _memoryOwner.Dispose();
 }
 
+// TODO: rename to MessageInfo
 internal readonly struct FrameInfo<TPayload> : IEquatable<FrameInfo<TPayload>> where TPayload : class
 {
     public Message Message { get; }
@@ -50,8 +53,8 @@ internal readonly struct FrameInfo<TPayload> : IEquatable<FrameInfo<TPayload>> w
 
     public bool Equals(FrameInfo<TPayload> other)
     {
-        return Message.Equals(other.Message) && 
-               EqualityComparer<TPayload>.Default.Equals(Payload, other.Payload) && 
+        return Message.Equals(other.Message) &&
+               EqualityComparer<TPayload>.Default.Equals(Payload, other.Payload) &&
                PayloadSerializer.Equals(other.PayloadSerializer);
     }
 
@@ -74,6 +77,6 @@ internal readonly struct FrameInfo<TPayload> : IEquatable<FrameInfo<TPayload>> w
     public static bool operator ==(FrameInfo<TPayload> left, FrameInfo<TPayload> right) => left.Equals(right);
 
     public static bool operator !=(FrameInfo<TPayload> left, FrameInfo<TPayload> right) => !left.Equals(right);
-    
+
     #endregion
 }
