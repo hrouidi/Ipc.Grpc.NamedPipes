@@ -56,7 +56,7 @@ namespace Ipc.Grpc.NamedPipes.Tests.ProtoContract
             ServerStream = responseStream;
             for (int i = request.Value; i > 0; i--)
             {
-                await responseStream.WriteAsync(new ResponseMessage {Value = i});
+                await responseStream.WriteAsync(new ResponseMessage {Value = i,Binary = request.Binary});
             }
         }
 
