@@ -82,7 +82,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             Assert.True(await call.ResponseStream.MoveNext());
             var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseStream.MoveNext());
             Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Unknown));
-            Assert.That(exception.Status.Detail, Is.EqualTo("Exception was thrown by handler."));
+            StringAssert.StartsWith("Exception was thrown by handler",exception.Status.Detail);
         }
 
         [Test, Timeout(TestTimeout)]

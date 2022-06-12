@@ -106,9 +106,9 @@ namespace Ipc.Grpc.NamedPipes.Internal
             throw new NotImplementedException();
         }
 
-        public IServerStreamWriter<TResponse> GetResponseStreamWriter<TResponse>(Marshaller<TResponse> responseMarshaller)
+        public IServerStreamWriter<TResponse> GetResponseStreamWriter<TResponse>(Marshaller<TResponse> responseMarshaller) where TResponse : class
         {
-            throw new NotImplementedException();
+            return new ResponseStreamWriter<TResponse>(_transport, CancellationTokenSource.Token, responseMarshaller.ContextualSerializer, () => IsCompleted);
         }
 
         public ValueTask Success<TResponse>(Marshaller<TResponse>? marshaller = null, TResponse? response = null) where TResponse : class
