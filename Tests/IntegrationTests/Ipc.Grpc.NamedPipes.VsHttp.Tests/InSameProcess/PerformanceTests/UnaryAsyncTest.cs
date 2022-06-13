@@ -37,13 +37,18 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
         {
             using var ctx = factory.Create();
             //ByteString byteString = ByteString.CopyFrom(new byte[16*1024]);
+            List<ResponseMessage> responses = new(10_000);
             var stopwatch = Stopwatch.StartNew();
-            for (int i = 0; i < 1_0000; i++)
+
+            for (int i = 0; i < 10_000; i++)
             {
                 ResponseMessage rep = await ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 123 });
+                responses.Add(rep);
             }
 
             stopwatch.Stop();
+            foreach (ResponseMessage response in responses)
+                Assert.That(response.Value, Is.EqualTo(123));
             Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
         }
 
@@ -114,7 +119,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
             stopwatch.Stop();
             Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
         }
-        
+
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]

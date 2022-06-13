@@ -19,6 +19,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly NamedPipeServerStream _pipeStream;
         private readonly NamedPipeTransport _transport;
 
+        private Message? _unaryRequestMessage;
+
         public CancellationTokenSource CancellationTokenSource { get; }
 
         public Deadline Deadline { get; private set; }
@@ -28,8 +30,6 @@ namespace Ipc.Grpc.NamedPipes.Internal
         public ServerCallContext CallContext { get; }
 
         public bool IsCompleted { get; private set; }
-
-        public Frame? UnaryRequestFrame { get; private set; }
 
         public ServerConnection(NamedPipeServerStream pipeStream, IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> methodHandlers)
         {
@@ -46,9 +46,11 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             try
             {
-                _pipeStream.Disconnect();
+                //_pipeStream.Flush();
+                //_pipeStream.WaitForPipeDrain();
+                //_pipeStream.Disconnect();
                 //TODO: recycle this instance in PipePool instead of disposing it
-                _pipeStream.Dispose();
+                
                 _transport.Dispose();
             }
             catch (Exception ex)
@@ -61,43 +63,38 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             while (IsCompleted == false && shutdownToken.IsCancellationRequested == false && _pipeStream.IsConnected)
             {
-                Frame frame = await _transport.ReadFrame(shutdownToken).ConfigureAwait(false);
+                Message message = await _transport.ReadFrame(shutdownToken).ConfigureAwait(false);
 
-                if (frame == Frame.Eof) //gracefully end the task
+                if (message == Message.Eof) //gracefully end the task
                 {
                     Debug.Assert(IsCompleted, "invalid end");
                     Debug.Assert(_pipeStream.IsMessageComplete, "Message is not complete");
-                    Debug.Assert(_pipeStream.IsConnected, "Pipe is steal connected");
+                    _pipeStream.Dispose();
                     return;
                 }
 
-                switch (frame.Message.DataCase)
+                switch (message.DataCase)
                 {
                     case Message.DataOneofCase.Request:
-                        _ = HandleRequestAsync(frame);
+                        _ = HandleRequestAsync(message);
                         break;
-                    case Message.DataOneofCase.RequestControl:
-                        switch (frame.Message.RequestControl)
-                        {
-                            case Control.Cancel:
-                                HandleCancel();
-                                break;
-                            case Control.StreamMessage:
-                                await _messageChannel.Append(frame).ConfigureAwait(false);
-                                break;
-                            case Control.StreamMessageEnd:
-                                await _messageChannel.SetCompleted().ConfigureAwait(false);
-                                break;
-                            case Control.None:
-                            default:
-                                throw new ArgumentOutOfRangeException();
-                        }
+                    case Message.DataOneofCase.Cancel:
+                        HandleCancel();
+                        message.Dispose();
+                        break;
+                    case Message.DataOneofCase.Streaming:
+                        await _messageChannel.Append(message).ConfigureAwait(false);
+                        break;
+                    case Message.DataOneofCase.StreamingEnd:
+                        await _messageChannel.SetCompleted().ConfigureAwait(false);
+                        message.Dispose();
                         break;
                     case Message.DataOneofCase.ResponseHeaders:
                     case Message.DataOneofCase.None:
                     case Message.DataOneofCase.Response:
                     default:
-                        throw new ArgumentOutOfRangeException();
+                        message.Dispose();
+                        throw new ArgumentOutOfRangeException("vilaine erreur");
                 }
             }
         }
@@ -106,6 +103,17 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             Message message = MessageBuilder.BuildResponseHeaders(responseHeaders);
             return _transport.SendFrame(message, CancellationTokenSource.Token);
+        }
+
+        public TRequest GetUnaryRequest<TRequest>(Marshaller<TRequest> requestMarshaller)
+        {
+            if (_unaryRequestMessage != null)
+            {
+                using Message? req = _unaryRequestMessage;
+                return req.GetPayload(requestMarshaller.ContextualDeserializer);
+            }
+
+            throw new InvalidOperationException("No request payload was found");
         }
 
         public IAsyncStreamReader<TRequest> GetRequestStreamReader<TRequest>(Marshaller<TRequest> requestMarshaller)
@@ -130,8 +138,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
             Message message = MessageBuilder.BuildReply(CallContext.ResponseTrailers, status, detail);
             if (response != null && marshaller != null)
             {
-                FrameInfo<TResponse> frameInfo = new(message, response, marshaller.ContextualSerializer);
-                return _transport.SendFrame(frameInfo, CallContext.CancellationToken);
+                MessageInfo<TResponse> messageInfo = new(message, response, marshaller.ContextualSerializer);
+                return _transport.SendFrame(messageInfo, CallContext.CancellationToken);
             }
             return _transport.SendFrame(message);
         }
@@ -162,13 +170,13 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         #region Message handlers
 
-        private async ValueTask HandleRequestAsync(Frame frame)//Should never throw
+        private async ValueTask HandleRequestAsync(Message message)//Should never throw
         {
             await Task.Yield();
-            if (frame.Message.Request.MethodType is Request.Types.MethodType.Unary or Request.Types.MethodType.ServerStreaming)
-                UnaryRequestFrame = frame;
+            if (message.Request.MethodType is Request.Types.MethodType.Unary or Request.Types.MethodType.ServerStreaming)
+                _unaryRequestMessage = message;
 
-            Request request = frame.Message.Request;
+            Request request = message.Request;
             Deadline = new Deadline(request.Deadline?.ToDateTime());
             RequestHeaders = MessageBuilder.DecodeMetadata(request.Headers.Metadata);
             await _methodHandlers[request.MethodFullName](this).ConfigureAwait(false);

@@ -13,7 +13,6 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly CancellationTokenSource _shutdownCancellationTokenSource;
         private readonly NamedPipeServerOptions _options;
         private readonly List<Task> _listenerTasks;
-        private readonly List<Task> _connectionsTasks;
 
         private readonly IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> _methodHandlers;
 
@@ -27,7 +26,6 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _methodHandlers = methodHandlers;
             _shutdownCancellationTokenSource = new CancellationTokenSource();
             _listenerTasks = new List<Task>();
-            _connectionsTasks = new List<Task>();
         }
 
         public void Start(int poolSize = 1)
@@ -48,7 +46,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
         }
 
-        public void Stop()//Blocking stop
+        public void Stop()
         {
             CheckIfDisposed();
             if (_started)
@@ -123,7 +121,6 @@ namespace Ipc.Grpc.NamedPipes.Internal
                     if (_shutdownCancellationTokenSource.IsCancellationRequested)
                         break;
                     Console.WriteLine($"{nameof(ServerListener)} Error while WaitForConnectionAsync: {ex.Message}");
-                    //throw;
                 }
             }
         }
@@ -138,6 +135,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
             catch (Exception ex)
             {
+                pipeServer.Dispose();
                 Console.WriteLine($"{nameof(ServerListener)} Error while ListenMessagesAsync: {ex.Message}");
             }
         }

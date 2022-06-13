@@ -34,8 +34,8 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
         public async Task AsyncCallTest(ChannelContextFactory factory)
         {
             using ChannelContext ctx = factory.Create();
-            ResponseMessage response = await ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 10 });
-            Assert.That(response.Value, Is.EqualTo(10));
+            ResponseMessage response = await ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 123 });
+            Assert.That(response.Value, Is.EqualTo(123));
             Assert.True(ctx.Impl.SimplyUnaryCalled);
         }
 

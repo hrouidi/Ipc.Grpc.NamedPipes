@@ -16,18 +16,18 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
 
             private ItemInfo() { }
 
-            public ItemInfo(Frame item) => Item = item;
+            public ItemInfo(Message item) => Item = item;
 
             public ItemInfo(Exception error) => Error = error;
 
-            public Frame Item { get; set; }
+            public Message Item { get; set; }
             public Exception Error { get; set; }
             public bool IsCompleted { get; private set; }
         }
 
         private readonly Channel<ItemInfo> _channel;
         private readonly CancellationToken _connectionCancellationToken;
-        
+
         public MessageChannel(CancellationToken connectionCancellationToken)
         {
             _connectionCancellationToken = connectionCancellationToken;
@@ -36,7 +36,7 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
         }
 
 
-        public ValueTask Append(Frame message)
+        public ValueTask Append(Message message)
         {
             return _channel.Writer.WriteAsync(new ItemInfo(message));
         }
@@ -54,15 +54,15 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
 
         public async ValueTask<TPayload> ReadAsync<TPayload>(Deadline deadline, Func<DeserializationContext, TPayload> deserializer) where TPayload : class
         {
-            ItemInfo ret = await SafeReadAsync(deadline,_connectionCancellationToken).ConfigureAwait(false); ;
-            
+            ItemInfo ret = await SafeReadAsync(deadline, _connectionCancellationToken).ConfigureAwait(false); 
+
             if (ret.Error != null)
                 throw MapException(ret.Error, deadline);
-            
+
             if (ret.IsCompleted)
                 throw new Exception("Channel completed");
 
-            using Frame msg = ret.Item; // Dispose underlying memory
+            using Message msg = ret.Item; // Dispose underlying memory
             TPayload payload = msg.GetPayload(deserializer);
             return payload;
         }
@@ -73,11 +73,11 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
         }
 
 
-        private async ValueTask<ItemInfo> SafeReadAsync(Deadline deadline,CancellationToken cancellationToken)
+        private async ValueTask<ItemInfo> SafeReadAsync(Deadline deadline, CancellationToken cancellationToken)
         {
             try
             {
-                return await _channel.Reader.ReadAsync(cancellationToken).ConfigureAwait(false); ;
+                return await _channel.Reader.ReadAsync(cancellationToken).ConfigureAwait(false); 
             }
             catch (Exception e)
             {
@@ -110,7 +110,7 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
 
             public async Task<bool> MoveNext(CancellationToken cancellationToken)
             {
-                ItemInfo ret = await _messageChannel.SafeReadAsync(_deadline,cancellationToken).ConfigureAwait(false);
+                ItemInfo ret = await _messageChannel.SafeReadAsync(_deadline, cancellationToken).ConfigureAwait(false);
 
                 if (ret.Error != null)
                     throw MapException(ret.Error, _deadline);
@@ -118,7 +118,7 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
                 if (ret.IsCompleted)
                     return false;
 
-                using Frame msg = ret.Item; // Dispose underlying memory
+                using Message msg = ret.Item; // Dispose underlying memory
                 Current = msg.GetPayload(_deserializer);
                 return true;
             }

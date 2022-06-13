@@ -136,8 +136,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 }
                 else //Unary or ServerStreaming
                 {
-                    FrameInfo<TRequest> frameInfo = new(message, _request, _method.RequestMarshaller.ContextualSerializer);
-                    await _transport.SendFrame(frameInfo, combined)
+                    MessageInfo<TRequest> messageInfo = new(message, _request, _method.RequestMarshaller.ContextualSerializer);
+                    await _transport.SendFrame(messageInfo, combined)
                                     .ConfigureAwait(false);
                 }
 
@@ -148,7 +148,6 @@ namespace Ipc.Grpc.NamedPipes.Internal
             {
                 Interlocked.Exchange(ref _isInServerSide, 0);
                 await _messageChannel.SetError(ex).ConfigureAwait(false);
-                //return ex;
                 return MessageChannel.MapException(ex, _deadline);
             }
             return null;
@@ -160,15 +159,20 @@ namespace Ipc.Grpc.NamedPipes.Internal
             {
                 while (true)
                 {
-                    Frame frame = await _transport.ReadFrame(token).ConfigureAwait(false);
-                    switch (frame.Message.DataCase)
+                    Message message = await _transport.ReadFrame(token).ConfigureAwait(false);
+                    if (message == Message.Eof)
+                    {
+                        await _messageChannel.SetError(new EndOfStreamException($"Server reply never received:")).ConfigureAwait(false);
+                        return;
+                    }
+                    switch (message.DataCase)
                     {
                         case Message.DataOneofCase.Response: //maybe it's a happy end: release pipe stream
                                                              // server has complete
                             Interlocked.Exchange(ref _isInServerSide, 0);
                             _pipeStream.Dispose();
 
-                            Reply response = frame.Message.Response;
+                            Reply response = message.Response;
 
                             EnsureResponseHeadersSet();
                             _status = new Status((StatusCode)response.StatusCode, response.StatusDetail);
@@ -177,35 +181,31 @@ namespace Ipc.Grpc.NamedPipes.Internal
                             if (_status.StatusCode == StatusCode.OK)
                             {
                                 if (_method.Type is MethodType.Unary or MethodType.ClientStreaming)
-                                    await _messageChannel.Append(frame).ConfigureAwait(false);
+                                    await _messageChannel.Append(message).ConfigureAwait(false);
                                 await _messageChannel.SetCompleted().ConfigureAwait(false);
                                 return;
                             }
                             await _messageChannel.SetError(new RpcException(_status)).ConfigureAwait(false);
+                            message.Dispose();
                             return;
 
                         case Message.DataOneofCase.ResponseHeaders:
-                            var headerMetadata = MessageBuilder.DecodeMetadata(frame.Message.ResponseHeaders.Metadata);
+                            Metadata headerMetadata = MessageBuilder.DecodeMetadata(message.ResponseHeaders.Metadata);
                             EnsureResponseHeadersSet(headerMetadata);
+                            message.Dispose();
                             break;
-                        case Message.DataOneofCase.RequestControl:
-                            switch (frame.Message.RequestControl)
-                            {
-                                case Control.StreamMessage:
-                                    await _messageChannel.Append(frame).ConfigureAwait(false);
-                                    break;
-                                case Control.None:
-                                case Control.Cancel:
-                                case Control.StreamMessageEnd:
-                                default:
-                                    throw new ArgumentOutOfRangeException();
-                            }
+                        case Message.DataOneofCase.Streaming:
+                            await _messageChannel.Append(message).ConfigureAwait(false);
+                            message.Dispose();
                             break;
                         case Message.DataOneofCase.None:
                         case Message.DataOneofCase.Request:
+                        case Message.DataOneofCase.StreamingEnd:
+                        case Message.DataOneofCase.Cancel:
                         default:
                             Interlocked.Exchange(ref _isInServerSide, 0);
                             _pipeStream.Dispose();
+                            message.Dispose();
                             throw new ArgumentOutOfRangeException();
                     }
                 }

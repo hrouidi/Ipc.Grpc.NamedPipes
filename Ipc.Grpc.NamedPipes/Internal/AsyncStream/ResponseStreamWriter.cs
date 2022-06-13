@@ -32,8 +32,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
             if (_cancellationToken.IsCancellationRequested)
                 return Task.FromCanceled(_cancellationToken);
 
-            FrameInfo<TResponse> frameInfo = new(MessageBuilder.Streaming, response, _payloadSerializer);
-            return _transport.SendFrame(frameInfo, _cancellationToken).AsTask();
+            MessageInfo<TResponse> messageInfo = new(MessageBuilder.Streaming, response, _payloadSerializer);
+            return _transport.SendFrame(messageInfo, _cancellationToken).AsTask();
         }
     }
 }

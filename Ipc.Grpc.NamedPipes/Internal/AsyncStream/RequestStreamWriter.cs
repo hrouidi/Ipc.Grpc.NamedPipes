@@ -45,8 +45,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
             if (exception != null)
                 throw exception;
 
-            FrameInfo <TRequest> frameInfo = new(MessageBuilder.Streaming, payload, _payloadSerializer);
-            await _transport.SendFrame(frameInfo, _connectionCancellationToken);
+            MessageInfo <TRequest> messageInfo = new(MessageBuilder.Streaming, payload, _payloadSerializer);
+            await _transport.SendFrame(messageInfo, _connectionCancellationToken);
         }
     }
 }

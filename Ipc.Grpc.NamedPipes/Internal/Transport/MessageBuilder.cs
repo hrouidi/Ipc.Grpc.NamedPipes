@@ -11,9 +11,9 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
     {
         #region Client messages
 
-        public static Message CancelRequest { get; } = new() { RequestControl = Control.Cancel };
+        public static Message CancelRequest { get; } = new() { Cancel = new Cancel() };
 
-        public static Message StreamEnd { get; } = new() { RequestControl = Control.StreamMessageEnd };
+        public static Message StreamEnd { get; } = new() { StreamingEnd = new StreamingEnd() };
 
         public static Message BuildRequest<TRequest, TResponse>(Method<TRequest, TResponse> method, DateTime? deadline, Metadata headers)
         {
@@ -32,7 +32,7 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
 
         #endregion
 
-        public static Message Streaming { get; } = new() { RequestControl = Control.StreamMessage };
+        public static Message Streaming { get; } = new() { Streaming = new Streaming() };
 
         #region Server messages
 

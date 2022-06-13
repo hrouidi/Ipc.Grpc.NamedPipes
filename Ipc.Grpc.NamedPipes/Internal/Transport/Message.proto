@@ -10,8 +10,10 @@ message Message {
     oneof data {
         Request request = 1;
         Reply response = 2;
-        Control requestControl = 3;
-        Headers responseHeaders = 4;
+        Cancel cancel = 3;
+        Streaming streaming = 4;
+        StreamingEnd streamingEnd = 5;
+        Headers responseHeaders = 6;
     }
 }
 
@@ -28,13 +30,6 @@ message Request {
 		serverStreaming = 2;
 		duplexStreaming = 3;
 	}
-}
-
-enum Control {
-    none = 0;
-    cancel = 1;
-    stream_message = 2;
-    stream_message_end = 3;
 }
 
 message Headers {
@@ -54,3 +49,7 @@ message MetadataEntry {
         bytes valueBytes = 3;
     }
 }
+
+message Cancel{}
+message Streaming{}
+message StreamingEnd{}

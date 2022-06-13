@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Linq;
 using System.Buffers;
 using System.Diagnostics;
 using System.IO.Pipes;
@@ -8,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using Ipc.Grpc.NamedPipes.Internal.Helpers;
+using Google.Protobuf;
 
 namespace Ipc.Grpc.NamedPipes.Internal.Transport
 {
@@ -25,12 +27,12 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
             _frameHeaderBytes = ArrayPool<byte>.Shared.Rent(FrameHeader.Size);
         }
 
-        public async ValueTask<Frame> ReadFrame(CancellationToken token = default)
+        public async ValueTask<Message> ReadFrame(CancellationToken token = default)
         {
             int readBytes = await _pipeStream.ReadAsync(_frameHeaderBytes, 0, FrameHeader.Size, token)
                                              .ConfigureAwait(false);
             if (readBytes == 0)
-                return Frame.Eof;
+                return Message.Eof;
 
             FrameHeader header = FrameHeader.FromSpan(_frameHeaderBytes.AsSpan().Slice(0, FrameHeader.Size));
 
@@ -40,35 +42,36 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
 
             readBytes = await _pipeStream.ReadAsync(framePlusPayloadBytes, token)
                                          .ConfigureAwait(false);
+            //if (readBytes == 0)
+            //    return Message.Eof;
+            if (readBytes != header.TotalSize)
+            {
+                Debug.Assert(readBytes == header.TotalSize, $"{_remote}  is laying: read bytes count:{readBytes}/{header.TotalSize}: buffer= {framePlusPayloadBytes.ToArray().Select(x => x.ToString()).Aggregate("", (x, y) => $"{x}|{y}")}");
+            }
 
-            Debug.Assert(readBytes == header.TotalSize, $"{_remote}  is a layer !");
             Debug.Assert(_pipeStream.IsMessageComplete, "Unexpected message :too long!");
 
-
-            Message? message = Message.Parser.ParseFrom(framePlusPayloadBytes.Span.Slice(0, header.MessageSize));
             Memory<byte> payloadBytes = framePlusPayloadBytes.Slice(header.MessageSize);
 
-            //Message message = new(payloadBytes, owner);
-            //message.MergeFrom(framePlusPayloadBytes.Span.Slice(0, header.MessageSize));
-
-            Frame packet = new(message, payloadBytes, owner);
-            return packet;
+            Message message = new(payloadBytes, owner);
+            message.MergeFrom(framePlusPayloadBytes.Span.Slice(0, header.MessageSize));
+            return message;
         }
 
-        public ValueTask SendFrame<TPayload>(FrameInfo<TPayload> frame, CancellationToken token = default) where TPayload : class
+        public async ValueTask SendFrame<TPayload>(MessageInfo<TPayload> message, CancellationToken token = default) where TPayload : class
         {
-            using MemorySerializationContext serializationContext = new(frame.Message);
-            frame.PayloadSerializer(frame.Payload, serializationContext);
+            using MemorySerializationContext serializationContext = new(message.Message);
+            message.PayloadSerializer(message.Payload, serializationContext);
 
             Memory<byte> frameBytes = serializationContext.Bytes;
 
             Memory<byte> headerBytes = frameBytes.Slice(0, FrameHeader.Size);
             FrameHeader.Write(headerBytes.Span, serializationContext.MessageSize, serializationContext.PayloadSize);
 
-            return _pipeStream.WriteAsync(frameBytes, token);
+            await _pipeStream.WriteAsync(frameBytes, token).ConfigureAwait(false);
         }
 
-        public ValueTask SendFrame(Message message, CancellationToken token = default)
+        public async ValueTask SendFrame(Message message, CancellationToken token = default)
         {
             var msgSize = message.CalculateSize();
 
@@ -76,12 +79,12 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
             Memory<byte> frameBytes = memoryOwner.Memory.Slice(0, FrameHeader.Size + msgSize);
             //#1 : frame header
             Memory<byte> headerBytes = frameBytes.Slice(0, FrameHeader.Size);
-            FrameHeader.Write(headerBytes.Span, msgSize,0);
+            FrameHeader.Write(headerBytes.Span, msgSize, 0);
             //#2 : Message
             Memory<byte> messageBytes = frameBytes.Slice(FrameHeader.Size);
-            MessageExtensions.WriteTo((IMessage)message, messageBytes.Span);
+            message.WriteTo(messageBytes.Span);
 
-            return _pipeStream.WriteAsync(frameBytes, token);
+            await _pipeStream.WriteAsync(frameBytes, token).ConfigureAwait(false); ;
         }
 
         public void Dispose()
