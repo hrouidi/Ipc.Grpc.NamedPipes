@@ -8,9 +8,9 @@ using Ipc.Grpc.NamedPipes.Internal.Helpers;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
-    internal class MessageChannel<TPayload> : IAsyncStreamReader<TPayload>
+    internal class MessageChannel
     {
-        public sealed class ItemInfo
+        private sealed class ItemInfo
         {
             public static readonly ItemInfo Completed = new() { IsCompleted = true };
 
@@ -26,16 +26,15 @@ namespace Ipc.Grpc.NamedPipes.Internal
         }
 
         private readonly Channel<ItemInfo> _channel;
-        private readonly Func<DeserializationContext, TPayload> _deserializer;
-        private readonly Deadline _deadline;
         private readonly CancellationToken _connectionCancellationToken;
-        public MessageChannel(Func<DeserializationContext, TPayload> deserializer, Deadline deadline, CancellationToken connectionCancellationToken)
+        
+        public MessageChannel(CancellationToken connectionCancellationToken)
         {
-            _deserializer = deserializer;
-            _deadline = deadline;
             _connectionCancellationToken = connectionCancellationToken;
-            _channel = Channel.CreateUnbounded<ItemInfo>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+            //_channel = Channel.CreateUnbounded<ItemInfo>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+            _channel = Channel.CreateUnbounded<ItemInfo>();
         }
+
 
         public ValueTask Append(Frame message)
         {
@@ -52,43 +51,29 @@ namespace Ipc.Grpc.NamedPipes.Internal
             return _channel.Writer.WriteAsync(new ItemInfo(ex));
         }
 
-        public async ValueTask<TPayload> ReadAsync()
+
+        public async ValueTask<TPayload> ReadAsync<TPayload>(Deadline deadline, Func<DeserializationContext, TPayload> deserializer) where TPayload : class
         {
-            ItemInfo ret = await SafeReadAsync(_connectionCancellationToken).ConfigureAwait(false); ;
+            ItemInfo ret = await SafeReadAsync(deadline,_connectionCancellationToken).ConfigureAwait(false); ;
+            
             if (ret.Error != null)
-                throw MapException(ret.Error);
+                throw MapException(ret.Error, deadline);
+            
             if (ret.IsCompleted)
                 throw new Exception("Channel completed");
 
             using Frame msg = ret.Item; // Dispose underlying memory
-            TPayload payload = msg.GetPayload(_deserializer);
+            TPayload payload = msg.GetPayload(deserializer);
             return payload;
         }
 
-
-
-        public async Task<bool> MoveNext(CancellationToken cancellationToken)
+        public IAsyncStreamReader<TPayload> GetAsyncStreamReader<TPayload>(Deadline deadline, Func<DeserializationContext, TPayload> deserializer)
         {
-            while (_channel.Reader.Completion.IsCompleted == false)
-            {
-                ItemInfo ret = await SafeReadAsync(cancellationToken).ConfigureAwait(false);
-                
-                if (ret.Error != null)
-                    throw MapException(ret.Error);
-                
-                if (ret.IsCompleted)
-                    return false;
-
-                using Frame msg = ret.Item; // Dispose underlying memory
-                Current = msg.GetPayload(_deserializer);
-                return true;
-            }
-            return false;
+            return new AsyncStreamReaderImplementation<TPayload>(this, deadline, deserializer);
         }
 
-        public TPayload Current { get; private set; }
-        
-        private async ValueTask<ItemInfo> SafeReadAsync(CancellationToken cancellationToken)
+
+        private async ValueTask<ItemInfo> SafeReadAsync(Deadline deadline,CancellationToken cancellationToken)
         {
             try
             {
@@ -96,20 +81,49 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
             catch (Exception e)
             {
-                throw MapException(e);
+                throw MapException(e, deadline);
             }
         }
 
-        private Exception MapException(Exception ex)
+        public static Exception MapException(Exception ex, Deadline deadline)
         {
             return ex switch
             {
                 TimeoutException or IOException => new RpcException(new Status(StatusCode.Unavailable, ex.Message)),
-                OperationCanceledException when _deadline.IsExpired => new RpcException(new Status(StatusCode.DeadlineExceeded, "")),
+                OperationCanceledException when deadline.IsExpired => new RpcException(new Status(StatusCode.DeadlineExceeded, "")),
                 OperationCanceledException => new RpcException(Status.DefaultCancelled),
                 _ => ex
             };
         }
 
+        internal sealed class AsyncStreamReaderImplementation<TPayload> : IAsyncStreamReader<TPayload>
+        {
+            private readonly MessageChannel _messageChannel;
+            private readonly Func<DeserializationContext, TPayload> _deserializer;
+            private readonly Deadline _deadline;
+            internal AsyncStreamReaderImplementation(MessageChannel messageChannel, Deadline deadline, Func<DeserializationContext, TPayload> deserializer)
+            {
+                _messageChannel = messageChannel;
+                _deadline = deadline;
+                _deserializer = deserializer;
+            }
+
+            public async Task<bool> MoveNext(CancellationToken cancellationToken)
+            {
+                ItemInfo ret = await _messageChannel.SafeReadAsync(_deadline,cancellationToken).ConfigureAwait(false);
+
+                if (ret.Error != null)
+                    throw MapException(ret.Error, _deadline);
+
+                if (ret.IsCompleted)
+                    return false;
+
+                using Frame msg = ret.Item; // Dispose underlying memory
+                Current = msg.GetPayload(_deserializer);
+                return true;
+            }
+
+            public TPayload Current { get; private set; }
+        }
     }
 }

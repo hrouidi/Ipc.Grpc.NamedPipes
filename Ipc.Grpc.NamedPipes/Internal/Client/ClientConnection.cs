@@ -20,13 +20,12 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly TRequest _request;
 
         private readonly TaskCompletionSource<Metadata> _responseHeadersTcs;
-        private readonly NamedPipeTransportV3 _transport;
+        private readonly Transport _transport;
         private readonly CancellationTokenSource _disposeCts;
         private readonly CancellationTokenSource _combinedCts;
-        private readonly MessageChannel<TResponse> _messageChannel;
+        private readonly MessageChannel _messageChannel;
 
-        private readonly Task _sendTask;
-        private Task _readTask;
+        private readonly Task<Exception> _sendTask;
 
         CancellationTokenRegistration _cancelRemoteRegistration;
         private int _isInServerSide;// 1 : true,0 : false
@@ -43,11 +42,11 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _request = request;
 
             _deadline = new Deadline(callOptions.Deadline);
-            _transport = new NamedPipeTransportV3(_pipeStream);
+            _transport = new Transport(_pipeStream);
             _responseHeadersTcs = new TaskCompletionSource<Metadata>(TaskCreationOptions.RunContinuationsAsynchronously);
             _disposeCts = new CancellationTokenSource();
             _combinedCts = CancellationTokenSource.CreateLinkedTokenSource(_callOptions.CancellationToken, _deadline.Token, _disposeCts.Token);
-            _messageChannel = new MessageChannel<TResponse>(method.ResponseMarshaller.ContextualDeserializer, _deadline, _combinedCts.Token);
+            _messageChannel = new MessageChannel(_combinedCts.Token);
 
             _sendTask = SafeSendRequestAsync();
         }
@@ -87,120 +86,11 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
         }
 
-        private void EnsureResponseHeadersSet(Metadata headers = null)
-        {
-            _responseHeadersTcs.TrySetResult(headers ?? new Metadata());
-        }
-
-        private async Task SafeSendRequestAsync()
-        {
-            CancellationToken combined = _combinedCts.Token;
-            try
-            {
-                await _pipeStream.ConnectAsync(_connectionTimeout, combined)
-                                 .ConfigureAwait(false);
-                _pipeStream.ReadMode = PipeTransmissionMode.Message;
-
-                _readTask = SafeReadAllMessagesAsync(_combinedCts.Token);
-
-                Message message = MessageBuilder.BuildRequest(_method, _callOptions.Deadline, _callOptions.Headers);
-                FrameInfo<TRequest> frameInfo = new(message, _request, _method.RequestMarshaller.ContextualSerializer);
-                await _transport.SendFrame(frameInfo, combined)
-                                .ConfigureAwait(false);
-
-                Interlocked.Exchange(ref _isInServerSide, 1);
-                _cancelRemoteRegistration = _callOptions.CancellationToken.Register(DisposeCall);
-            }
-            catch (Exception ex)
-            {
-                Interlocked.Exchange(ref _isInServerSide, 0);
-                await _messageChannel.SetError(ex).ConfigureAwait(false);
-                //throw ex switch
-                //{
-                //    TimeoutException or IOException => new RpcException(new Status(StatusCode.Unavailable, ex.Message)),
-                //    OperationCanceledException when _deadline.IsExpired => new RpcException(new Status(StatusCode.DeadlineExceeded, "")),
-                //    OperationCanceledException => new RpcException(Status.DefaultCancelled),
-                //    _ => ex
-                //};
-            }
-        }
-
-        private async Task SafeReadAllMessagesAsync(CancellationToken token)
-        {
-            try
-            {
-                await ReadAllMessagesAsync(token).ConfigureAwait(false);
-            }
-            catch (Exception e)
-            {
-                await _messageChannel.SetError(e).ConfigureAwait(false); ;
-            }
-        }
-
-        private async Task ReadAllMessagesAsync(CancellationToken token)
-        {
-            while (true)
-            {
-                Frame frame = await _transport.ReadFrame(token).ConfigureAwait(false);
-                switch (frame.Message.DataCase)
-                {
-                    case Message.DataOneofCase.Response: //maybe it's a happy end: release pipe stream
-                        // server has complete
-                        Interlocked.Exchange(ref _isInServerSide, 0);
-                        _pipeStream.Dispose();
-
-                        Response response = frame.Message.Response;
-
-                        EnsureResponseHeadersSet();
-                        _status = new Status((StatusCode)response.Trailers.StatusCode, response.Trailers.StatusDetail);
-                        _responseTrailers = MessageBuilder.ToMetadata(response.Trailers.Metadata) ?? new Metadata();
-
-                        if (_status.StatusCode == StatusCode.OK)
-                        {
-                            if (_method.Type is MethodType.Unary or MethodType.ClientStreaming)
-                                await _messageChannel.Append(frame).ConfigureAwait(false);
-                            await _messageChannel.SetCompleted().ConfigureAwait(false);
-                            return;
-                        }
-                        await _messageChannel.SetError(new RpcException(_status)).ConfigureAwait(false);
-                        return;
-
-                    case Message.DataOneofCase.ResponseHeaders:
-                        var headerMetadata = MessageBuilder.ToMetadata(frame.Message.ResponseHeaders.Metadata);
-                        EnsureResponseHeadersSet(headerMetadata);
-                        break;
-                    case Message.DataOneofCase.RequestControl:
-                        switch (frame.Message.RequestControl)
-                        {
-                            case Control.StreamMessage:
-                                await _messageChannel.Append(frame).ConfigureAwait(false);
-                                break;
-                            case Control.None:
-                            case Control.Cancel:
-                            case Control.StreamMessageEnd:
-                            default:
-                                throw new ArgumentOutOfRangeException();
-                        }
-                        break;
-                    case Message.DataOneofCase.None:
-                    case Message.DataOneofCase.Request:
-                    default:
-                        Interlocked.Exchange(ref _isInServerSide, 0);
-                        _pipeStream.Dispose();
-                        throw new ArgumentOutOfRangeException();
-                }
-            }
-        }
-
-        #region Unary Async
-
-        //private TResponse _unaryResponse;
-
         public async Task<TResponse> GetResponseAsync()
         {
             try
             {
-                TResponse ret = await _messageChannel.ReadAsync();
+                TResponse ret = await _messageChannel.ReadAsync(_deadline, _method.ResponseMarshaller.ContextualDeserializer);
                 return ret;
             }
             finally
@@ -209,83 +99,120 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
         }
 
-        #endregion
-
-        #region Server streaming Async
-
         public IAsyncStreamReader<TResponse> GetResponseStreamReader()
         {
-            return _messageChannel;
+            return _messageChannel.GetAsyncStreamReader(_deadline, _method.ResponseMarshaller.ContextualDeserializer);
         }
-
-        //public async IAsyncStreamReader<TResponse> GetResponseStreamReader2()
-        //{
-        //    using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(_callOptions.CancellationToken, _deadline.Token, _disposeCts.Token);
-        //    CancellationToken combined = combinedCts.Token;
-        //    try
-        //    {
-        //        await _pipeStream.ConnectAsync(_connectionTimeout, combined)
-        //                         .ConfigureAwait(false);
-        //        _pipeStream.ReadMode = PipeTransmissionMode.Message;
-
-        //        Task readAllMessagesTask = ReadAllMessagesAsync(combined);
-
-        //        Message message = MessageBuilder.BuildRequest(_method, _callOptions.Deadline, _callOptions.Headers);
-        //        FrameInfo<TRequest> frameInfo = new(message, _request, _method.RequestMarshaller.ContextualSerializer);
-        //        await _transport.SendFrame(frameInfo, combined)
-        //                        .ConfigureAwait(false);
-
-        //        Interlocked.Exchange(ref _isInServerSide, 1);
-        //        using CancellationTokenRegistration cancellationRegistration = _callOptions.CancellationToken.Register(DisposeCall);
-        //        await readAllMessagesTask.ConfigureAwait(false);
-        //        return new PayloadStreamReader<TResponse>(_payloadChannel, _method.ResponseMarshaller.ContextualDeserializer,combined);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        Interlocked.Exchange(ref _isInServerSide, 0);
-        //        throw ex switch
-        //        {
-        //            TimeoutException or IOException => new RpcException(new Status(StatusCode.Unavailable, ex.Message)),
-        //            OperationCanceledException when _deadline.IsExpired => new RpcException(new Status(StatusCode.DeadlineExceeded, "")),
-        //            OperationCanceledException => new RpcException(Status.DefaultCancelled),
-        //            _ => ex
-        //        };
-        //    }
-        //    finally
-        //    {
-        //        Dispose();
-        //    }
-        //}
-
-        #endregion
-
-        #region Client streaming Async
 
         public IClientStreamWriter<TRequest> GetRequestStreamWriter()
         {
-            throw new NotImplementedException();
-            //return new RequestStreamWriter<TRequest>(Transport, _callOptions.CancellationToken, requestMarshaller);
+            return new RequestStreamWriter<TRequest>(_transport, _method.RequestMarshaller.ContextualSerializer, _combinedCts.Token, _sendTask);
         }
 
-        #endregion
 
-        #region Duplex streaming Async
 
-        public IAsyncStreamReader<TResponse> GetResponseStreamReader2()
+        private void EnsureResponseHeadersSet(Metadata headers = null)
         {
-            throw new NotImplementedException();
-            //return new MessageStreamReader<TResponse>(_payloadChannel, responseMarshaller, _callOptions.CancellationToken, _deadline);
+            _responseHeadersTcs.TrySetResult(headers ?? new Metadata());
         }
 
-        public IClientStreamWriter<TRequest> GetRequestStreamWriter2()
+        private async Task<Exception> SafeSendRequestAsync()
         {
-            throw new NotImplementedException();
-            //return new RequestStreamWriter<TRequest>(Transport, _callOptions.CancellationToken, requestMarshaller);
+            CancellationToken combined = _combinedCts.Token;
+            try
+            {
+                await _pipeStream.ConnectAsync(_connectionTimeout, combined)
+                                 .ConfigureAwait(false);
+                _pipeStream.ReadMode = PipeTransmissionMode.Message;
+
+                _ = SafeReadAllMessagesAsync(_combinedCts.Token);
+
+                Message message = MessageBuilder.BuildRequest(_method, _callOptions.Deadline, _callOptions.Headers);
+                if (_request is null) // ClientStreaming or DuplexStreaming
+                {
+                    await _transport.SendFrame(message, combined)
+                                    .ConfigureAwait(false);
+                }
+                else //Unary or ServerStreaming
+                {
+                    FrameInfo<TRequest> frameInfo = new(message, _request, _method.RequestMarshaller.ContextualSerializer);
+                    await _transport.SendFrame(frameInfo, combined)
+                                    .ConfigureAwait(false);
+                }
+
+                Interlocked.Exchange(ref _isInServerSide, 1);
+                _cancelRemoteRegistration = _callOptions.CancellationToken.Register(DisposeCall);
+            }
+            catch (Exception ex)
+            {
+                Interlocked.Exchange(ref _isInServerSide, 0);
+                await _messageChannel.SetError(ex).ConfigureAwait(false);
+                //return ex;
+                return MessageChannel.MapException(ex, _deadline);
+            }
+            return null;
         }
 
-        #endregion
+        private async Task SafeReadAllMessagesAsync(CancellationToken token)
+        {
+            try
+            {
+                while (true)
+                {
+                    Frame frame = await _transport.ReadFrame(token).ConfigureAwait(false);
+                    switch (frame.Message.DataCase)
+                    {
+                        case Message.DataOneofCase.Response: //maybe it's a happy end: release pipe stream
+                                                             // server has complete
+                            Interlocked.Exchange(ref _isInServerSide, 0);
+                            _pipeStream.Dispose();
+
+                            Response response = frame.Message.Response;
+
+                            EnsureResponseHeadersSet();
+                            _status = new Status((StatusCode)response.Trailers.StatusCode, response.Trailers.StatusDetail);
+                            _responseTrailers = MessageBuilder.ToMetadata(response.Trailers.Metadata) ?? new Metadata();
+
+                            if (_status.StatusCode == StatusCode.OK)
+                            {
+                                if (_method.Type is MethodType.Unary or MethodType.ClientStreaming)
+                                    await _messageChannel.Append(frame).ConfigureAwait(false);
+                                await _messageChannel.SetCompleted().ConfigureAwait(false);
+                                return;
+                            }
+                            await _messageChannel.SetError(new RpcException(_status)).ConfigureAwait(false);
+                            return;
+
+                        case Message.DataOneofCase.ResponseHeaders:
+                            var headerMetadata = MessageBuilder.ToMetadata(frame.Message.ResponseHeaders.Metadata);
+                            EnsureResponseHeadersSet(headerMetadata);
+                            break;
+                        case Message.DataOneofCase.RequestControl:
+                            switch (frame.Message.RequestControl)
+                            {
+                                case Control.StreamMessage:
+                                    await _messageChannel.Append(frame).ConfigureAwait(false);
+                                    break;
+                                case Control.None:
+                                case Control.Cancel:
+                                case Control.StreamMessageEnd:
+                                default:
+                                    throw new ArgumentOutOfRangeException();
+                            }
+                            break;
+                        case Message.DataOneofCase.None:
+                        case Message.DataOneofCase.Request:
+                        default:
+                            Interlocked.Exchange(ref _isInServerSide, 0);
+                            _pipeStream.Dispose();
+                            throw new ArgumentOutOfRangeException();
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                await _messageChannel.SetError(e).ConfigureAwait(false);
+            }
+        }
     }
-
-
-
 }

@@ -3,19 +3,26 @@ syntax = "proto3";
 package Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
 
 service TestService {
+
     rpc SimpleUnary (RequestMessage) returns (ResponseMessage) {}
     rpc DelayedUnary (RequestMessage) returns (ResponseMessage) {}
     rpc ThrowingUnary (RequestMessage) returns (ResponseMessage) {}
     rpc DelayedThrowingUnary (RequestMessage) returns (ResponseMessage) {}
+    rpc UnarySetHeadersTrailers (RequestMessage) returns (ResponseMessage) {}
+    rpc UnarySetStatus (RequestMessage) returns (ResponseMessage) {}
+
     rpc ClientStreaming (stream RequestMessage) returns (ResponseMessage) {}
+    rpc DelayedClientStreaming (stream RequestMessage) returns (ResponseMessage) {}
+
     rpc ServerStreaming (RequestMessage) returns (stream ResponseMessage) {}
     rpc DelayedServerStreaming (RequestMessage) returns (stream ResponseMessage) {}
     rpc ThrowingServerStreaming (RequestMessage) returns (stream ResponseMessage) {}
+
     rpc DuplexStreaming (stream RequestMessage) returns (stream ResponseMessage) {}
     rpc DelayedDuplexStreaming (stream RequestMessage) returns (stream ResponseMessage) {}
     rpc ThrowingDuplexStreaming (stream RequestMessage) returns (stream ResponseMessage) {}
-    rpc HeadersTrailers (RequestMessage) returns (ResponseMessage) {}
-    rpc SetStatus (RequestMessage) returns (ResponseMessage) {}
+
+   
 }
 
 message RequestMessage {

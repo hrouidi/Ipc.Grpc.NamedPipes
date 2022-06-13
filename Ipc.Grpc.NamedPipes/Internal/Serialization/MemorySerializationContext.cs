@@ -9,40 +9,42 @@ namespace Ipc.Grpc.NamedPipes.Internal
 {
     internal class MemorySerializationContext : SerializationContext, IDisposable
     {
-        private readonly Message _Message;
+        private readonly Message _message;
 
-        private int _payloadLength;
         private Memory<byte> _payloadBytes;
 
         private MemoryBufferWriter _writer;
 
         public int MessageSize { get; }
+
+        public int PayloadSize { get; private set; }
+
         public Memory<byte> Bytes { get; private set; }
 
         public IMemoryOwner<byte> MemoryOwner { get; private set; }
 
-        public MemorySerializationContext(Message Message)
+        public MemorySerializationContext(Message message)
         {
-            _Message = Message;
-            MessageSize = _Message.CalculateSize();
+            _message = message;
+            MessageSize = _message.CalculateSize();
         }
 
         public override void Complete(byte[] payload) // worst case , buffer is already allocated
         {
-            int padding = NamedPipeTransportV2.FrameHeader.Size;
+            PayloadSize = payload.Length;
+            int padding = Transport.FrameHeader.Size;
             //All
             MemoryOwner = MemoryPool<byte>.Shared.Rent(padding + MessageSize + payload.Length);
-            Memory<byte> messageBytes = MemoryOwner.Memory.Slice(0, padding + MessageSize + _payloadLength);
+            Memory<byte> bytes = MemoryOwner.Memory.Slice(0, padding + MessageSize + payload.Length);
             //#1 : will be set later in send method
 
             //#2 : Message
-            Memory<byte> MessageBytes = messageBytes.Slice(padding, MessageSize);
-            _Message.WriteTo(MessageBytes.Span);
+            Memory<byte> messageBytes = bytes.Slice(padding, MessageSize);
+            _message.WriteTo(messageBytes.Span);
             //#3 : payload 
-            _payloadBytes = messageBytes.Slice(padding + MessageSize);
+            _payloadBytes = bytes.Slice(padding + MessageSize);
             payload.AsMemory().CopyTo(_payloadBytes);//Damn
-            Bytes = messageBytes;
-
+            Bytes = bytes;
         }
 
         public override IBufferWriter<byte> GetBufferWriter()
@@ -52,28 +54,28 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public override void SetPayloadLength(int payloadLength) // best case: size is known before allocating the buffer
         {
-            _payloadLength = payloadLength;
-            int padding = NamedPipeTransportV2.FrameHeader.Size;
+            PayloadSize = payloadLength;
+            int padding = Transport.FrameHeader.Size;
             //All
-            MemoryOwner = MemoryPool<byte>.Shared.Rent(padding + MessageSize + _payloadLength);
-            Bytes = MemoryOwner.Memory.Slice(0, padding + MessageSize + _payloadLength);
+            MemoryOwner = MemoryPool<byte>.Shared.Rent(padding + MessageSize + PayloadSize);
+            Bytes = MemoryOwner.Memory.Slice(0, padding + MessageSize + PayloadSize);
             //#1 : will be set later in send method
 
             //#2 : Message
-            Memory<byte> MessageBytes = Bytes.Slice(padding, MessageSize);
-            _Message.WriteTo(MessageBytes.Span);
+            Memory<byte> messageBytes = Bytes.Slice(padding, MessageSize);
+            _message.WriteTo(messageBytes.Span);
             //#3 : payload will be set in MemoryBufferWriter
             _payloadBytes = Bytes.Slice(padding + MessageSize);
         }
 
         public override void Complete()
         {
-            Debug.Assert(Bytes.Length == NamedPipeTransportV2.FrameHeader.Size + MessageSize + _payloadBytes.Length);
+            Debug.Assert(Bytes.Length == Transport.FrameHeader.Size + MessageSize + _payloadBytes.Length);
         }
 
         public void Dispose()
         {
-            MemoryOwner.Dispose();
+            MemoryOwner?.Dispose();
         }
     }
 }

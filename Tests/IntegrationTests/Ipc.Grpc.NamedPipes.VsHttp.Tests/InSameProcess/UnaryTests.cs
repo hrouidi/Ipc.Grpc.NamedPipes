@@ -53,6 +53,55 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             Assert.That(response.Binary, Is.EqualTo(byteString));
         }
 
+        [Test, Timeout(TestTimeout)]
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public Task SetStatus(ChannelContextFactory factory)
+        {
+            using ChannelContext ctx = factory.Create();
+            var call = ctx.Client.UnarySetStatusAsync(new RequestMessage());
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await call);
+            Assert.That(exception.Status.StatusCode, Is.EqualTo(StatusCode.InvalidArgument));
+            Assert.That(exception.Status.Detail, Is.EqualTo("invalid argument"));
+            return Task.CompletedTask;
+        }
+
+        [Test, Timeout(TestTimeout)]
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public async Task SetHeadersAndTrailers(ChannelContextFactory factory)
+        {
+            using ChannelContext ctx = factory.Create();
+            var requestHeaders = new Metadata
+            {
+                {"A1", "1"},
+                {"A2-bin", new[] {(byte) 2}},
+            };
+            var responseHeaders = new Metadata
+            {
+                {"B1", "1"},
+                {"B2-bin", new[] {(byte) 2}},
+            };
+            var responseTrailers = new Metadata
+            {
+                {"C1", "1"},
+                {"C2-bin", new[] {(byte) 2}},
+            };
+
+            ctx.Impl.ResponseHeaders = responseHeaders;
+            ctx.Impl.ResponseTrailers = responseTrailers;
+            AsyncUnaryCall<ResponseMessage> call = ctx.Client.UnarySetHeadersTrailersAsync(new RequestMessage { Value = 1 }, requestHeaders);
+
+            Metadata actualResponseHeaders = await call.ResponseHeadersAsync;
+            await call.ResponseAsync;
+            Metadata actualResponseTrailers = call.GetTrailers();
+            Status actualStatus = call.GetStatus();
+            Metadata actualRequestHeaders = ctx.Impl.RequestHeaders;
+
+            MetadataAssert.AreEquivalent(requestHeaders, actualRequestHeaders);
+            MetadataAssert.AreEquivalent(responseHeaders, actualResponseHeaders);
+            MetadataAssert.AreEquivalent(responseTrailers, actualResponseTrailers);
+            Assert.That(actualStatus.StatusCode, Is.EqualTo(StatusCode.OK));
+        }
+
         #region Cancel tests
 
         [Test, Timeout(TestTimeout)]
@@ -235,7 +284,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
 
         #endregion
 
-        #region Catching service implementation exceptions tests
+        #region Exceptions forwarding tests
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
@@ -276,55 +325,6 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
         }
 
         #endregion
-
-        [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(MultiChannelSource))]
-        public Task SetStatus(ChannelContextFactory factory)
-        {
-            using ChannelContext ctx = factory.Create();
-            var call = ctx.Client.SetStatusAsync(new RequestMessage());
-            var exception = Assert.ThrowsAsync<RpcException>(async () => await call);
-            Assert.That(exception.Status.StatusCode, Is.EqualTo(StatusCode.InvalidArgument));
-            Assert.That(exception.Status.Detail, Is.EqualTo("invalid argument"));
-            return Task.CompletedTask;
-        }
-
-        [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(MultiChannelSource))]
-        public async Task HeadersAndTrailers(ChannelContextFactory factory)
-        {
-            using ChannelContext ctx = factory.Create();
-            var requestHeaders = new Metadata
-            {
-                {"A1", "1"},
-                {"A2-bin", new[] {(byte) 2}},
-            };
-            var responseHeaders = new Metadata
-            {
-                {"B1", "1"},
-                {"B2-bin", new[] {(byte) 2}},
-            };
-            var responseTrailers = new Metadata
-            {
-                {"C1", "1"},
-                {"C2-bin", new[] {(byte) 2}},
-            };
-
-            ctx.Impl.ResponseHeaders = responseHeaders;
-            ctx.Impl.ResponseTrailers = responseTrailers;
-            AsyncUnaryCall<ResponseMessage> call = ctx.Client.HeadersTrailersAsync(new RequestMessage { Value = 1 }, requestHeaders);
-
-            Metadata actualResponseHeaders = await call.ResponseHeadersAsync;
-            await call.ResponseAsync;
-            Metadata actualResponseTrailers = call.GetTrailers();
-            Status actualStatus = call.GetStatus();
-            Metadata actualRequestHeaders = ctx.Impl.RequestHeaders;
-
-            MetadataAssert.AreEquivalent(requestHeaders, actualRequestHeaders);
-            MetadataAssert.AreEquivalent(responseHeaders, actualResponseHeaders);
-            MetadataAssert.AreEquivalent(responseTrailers, actualResponseTrailers);
-            Assert.That(actualStatus.StatusCode, Is.EqualTo(StatusCode.OK));
-        }
 
         //TODO:  move to separate channel/server tests
 

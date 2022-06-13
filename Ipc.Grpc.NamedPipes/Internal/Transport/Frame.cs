@@ -11,6 +11,8 @@ namespace Ipc.Grpc.NamedPipes.Internal;
 //TODO: replace by Message class (partial class extended)
 internal sealed class Frame : IDisposable//where TPayload : class 
 {
+    public static Frame Eof = new (null,null,null);
+
     private readonly IMemoryOwner<byte> _memoryOwner;
     private readonly Memory<byte> _payloadBytes;
 

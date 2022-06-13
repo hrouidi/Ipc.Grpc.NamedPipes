@@ -101,8 +101,8 @@ namespace Ipc.Grpc.NamedPipes
             var connection = new ClientConnection<TRequest, TResponse>(stream, callOptions, _options.ConnectionTimeout, method, null);
 
             return new AsyncDuplexStreamingCall<TRequest, TResponse>(
-                connection.GetRequestStreamWriter2(),
-                connection.GetResponseStreamReader2(),
+                connection.GetRequestStreamWriter(),
+                connection.GetResponseStreamReader(),
                 ResponseHeadersAsync<TRequest, TResponse>,
                 GetStatus<TRequest, TResponse>,
                 GetTrailers<TRequest, TResponse>,

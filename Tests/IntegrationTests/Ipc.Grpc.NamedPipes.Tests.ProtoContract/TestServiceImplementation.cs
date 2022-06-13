@@ -7,11 +7,7 @@ namespace Ipc.Grpc.NamedPipes.Tests.ProtoContract
 {
     public class TestServiceImplementation : TestService.TestServiceBase
     {
-        public Exception ExceptionToThrow { get; set; } = new InvalidOperationException("Test exception");
-
-        public bool SimplyUnaryCalled { get; private set; }
-
-        public IServerStreamWriter<ResponseMessage> ServerStream { get; private set; }
+        #region Unary
 
         public override Task<ResponseMessage> SimpleUnary(RequestMessage request, ServerCallContext context)
         {
@@ -39,6 +35,34 @@ namespace Ipc.Grpc.NamedPipes.Tests.ProtoContract
             await Task.Delay(2000, context.CancellationToken);
             throw ExceptionToThrow;
         }
+        
+        public override async Task<ResponseMessage> UnarySetHeadersTrailers(RequestMessage request, ServerCallContext context)
+        {
+            RequestHeaders = context.RequestHeaders;
+            await context.WriteResponseHeadersAsync(ResponseHeaders);
+            foreach (Metadata.Entry entry in ResponseTrailers)
+            {
+                if (entry.IsBinary)
+                    context.ResponseTrailers.Add(entry.Key, entry.ValueBytes);
+                else
+                    context.ResponseTrailers.Add(entry.Key, entry.Value);
+            }
+            return new ResponseMessage
+                   {
+                       Value = request.Value,
+                       Binary = request.Binary
+                   };
+        }
+
+        public override Task<ResponseMessage> UnarySetStatus(RequestMessage request, ServerCallContext context)
+        {
+            context.Status = new Status(StatusCode.InvalidArgument, "invalid argument");
+            return Task.FromResult(new ResponseMessage());
+        }
+
+        #endregion
+
+        #region Client streaming
 
         public override async Task<ResponseMessage> ClientStreaming(IAsyncStreamReader<RequestMessage> requestStream, ServerCallContext context)
         {
@@ -48,15 +72,30 @@ namespace Ipc.Grpc.NamedPipes.Tests.ProtoContract
                 total += requestStream.Current.Value;
             }
 
-            return new ResponseMessage {Value = total};
+            return new ResponseMessage { Value = total };
         }
+
+        public override async Task<ResponseMessage> DelayedClientStreaming(IAsyncStreamReader<RequestMessage> requestStream, ServerCallContext context)
+        {
+            int total = 0;
+            while (await requestStream.MoveNext())
+            {
+                total += requestStream.Current.Value;
+            }
+            await Task.Delay(total, context.CancellationToken);
+            return new ResponseMessage { Value = total };
+        }
+
+        #endregion
+
+        #region Server streaming
 
         public override async Task ServerStreaming(RequestMessage request, IServerStreamWriter<ResponseMessage> responseStream, ServerCallContext context)
         {
             ServerStream = responseStream;
             for (int i = request.Value; i > 0; i--)
             {
-                await responseStream.WriteAsync(new ResponseMessage {Value = i,Binary = request.Binary});
+                await responseStream.WriteAsync(new ResponseMessage { Value = i, Binary = request.Binary });
             }
         }
 
@@ -64,7 +103,7 @@ namespace Ipc.Grpc.NamedPipes.Tests.ProtoContract
         {
             for (int i = request.Value; i > 0; i--)
             {
-                await responseStream.WriteAsync(new ResponseMessage {Value = i});
+                await responseStream.WriteAsync(new ResponseMessage { Value = i });
                 await Task.Delay(2000, context.CancellationToken);
                 if (context.CancellationToken.IsCancellationRequested)
                 {
@@ -78,19 +117,23 @@ namespace Ipc.Grpc.NamedPipes.Tests.ProtoContract
             ServerStream = responseStream;
             for (int i = request.Value; i > 0; i--)
             {
-                await responseStream.WriteAsync(new ResponseMessage {Value = i});
+                await responseStream.WriteAsync(new ResponseMessage { Value = i });
             }
             throw new Exception("blah");
         }
 
+        #endregion
+
+        #region Duplex streaming
+
         public override async Task DuplexStreaming(IAsyncStreamReader<RequestMessage> requestStream, IServerStreamWriter<ResponseMessage> responseStream, ServerCallContext context)
         {
-            await responseStream.WriteAsync(new ResponseMessage {Value = 10});
-            await responseStream.WriteAsync(new ResponseMessage {Value = 11});
+            await responseStream.WriteAsync(new ResponseMessage { Value = 10 });
+            await responseStream.WriteAsync(new ResponseMessage { Value = 11 });
             await Task.Delay(100);
             while (await requestStream.MoveNext())
             {
-                await responseStream.WriteAsync(new ResponseMessage {Value = requestStream.Current.Value});
+                await responseStream.WriteAsync(new ResponseMessage { Value = requestStream.Current.Value });
             }
         }
 
@@ -98,7 +141,7 @@ namespace Ipc.Grpc.NamedPipes.Tests.ProtoContract
         {
             while (await requestStream.MoveNext(context.CancellationToken))
             {
-                await responseStream.WriteAsync(new ResponseMessage {Value = requestStream.Current.Value});
+                await responseStream.WriteAsync(new ResponseMessage { Value = requestStream.Current.Value });
                 await Task.Delay(2000, context.CancellationToken);
             }
         }
@@ -107,45 +150,26 @@ namespace Ipc.Grpc.NamedPipes.Tests.ProtoContract
         {
             while (await requestStream.MoveNext())
             {
-                await responseStream.WriteAsync(new ResponseMessage {Value = requestStream.Current.Value});
+                await responseStream.WriteAsync(new ResponseMessage { Value = requestStream.Current.Value });
             }
             throw new Exception("blah");
         }
 
-        public override async Task<ResponseMessage> HeadersTrailers(RequestMessage request, ServerCallContext context)
-        {
-            RequestHeaders = context.RequestHeaders;
-            await context.WriteResponseHeadersAsync(ResponseHeaders);
-            foreach (Metadata.Entry entry in ResponseTrailers)
-            {
-                if (entry.IsBinary)
-                    context.ResponseTrailers.Add(entry.Key, entry.ValueBytes);
-                else
-                    context.ResponseTrailers.Add(entry.Key, entry.Value);
-            }
-            return new ResponseMessage
-            {
-                Value = request.Value,
-                Binary = request.Binary
-            };
-        }
+        #endregion
 
-        public override Task<ResponseMessage> SetStatus(RequestMessage request, ServerCallContext context)
-        {
-            context.Status = new Status(StatusCode.InvalidArgument, "invalid argument");
-            return Task.FromResult(new ResponseMessage());
-        }
+        #region Tests heplers
+        public Exception ExceptionToThrow { get; set; } = new InvalidOperationException("Test exception");
+
+        public bool SimplyUnaryCalled { get; private set; }
+
+        public IServerStreamWriter<ResponseMessage> ServerStream { get; private set; }
 
         public Metadata RequestHeaders { get; private set; }
-        
+
         public Metadata ResponseHeaders { private get; set; }
-        
+
         public Metadata ResponseTrailers { private get; set; }
 
-        public Task<ResponseMessage> ModifyServerCallContext(RequestMessage request, ServerCallContext context)
-        {
-            context.Status = new Status(StatusCode.InvalidArgument, "invalid argument");
-            return Task.FromResult(new ResponseMessage());
-        }
+        #endregion
     }
 }

@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,9 +14,9 @@ namespace Ipc.Grpc.NamedPipes.Internal
     internal class ServerConnection : IDisposable
     {
         private readonly IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> _methodHandlers;
-        //private readonly MessageChannel<Frame> _messageChannel;
+        private readonly MessageChannel _messageChannel;
         private readonly NamedPipeServerStream _pipeStream;
-        private readonly NamedPipeTransportV3 _transport;
+        private readonly Transport _transport;
 
         public CancellationTokenSource CancellationTokenSource { get; }
 
@@ -33,12 +34,11 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             CallContext = new NamedPipeCallContext(this);
             _pipeStream = pipeStream;
-            _transport = new NamedPipeTransportV3(pipeStream);
+            _transport = new Transport(pipeStream);
             _methodHandlers = methodHandlers;
-            //_messageChannel = new MessageChannel<Frame>();
             CancellationTokenSource = new CancellationTokenSource();
-
             Deadline = Deadline.None;
+            _messageChannel = new MessageChannel(CancellationTokenSource.Token);
         }
 
         public void Dispose()
@@ -52,7 +52,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error : {ex.Message}");
+                Console.WriteLine($"{nameof(ServerConnection)} Error while disposing: {ex.Message}");
             }
         }
 
@@ -61,15 +61,19 @@ namespace Ipc.Grpc.NamedPipes.Internal
             while (IsCompleted == false && shutdownToken.IsCancellationRequested == false && _pipeStream.IsConnected)
             {
                 Frame frame = await _transport.ReadFrame(shutdownToken).ConfigureAwait(false);
+
+                if (frame == Frame.Eof) //gracefully end the task
+                {
+                    Debug.Assert(IsCompleted, "invalid end");
+                    Debug.Assert(_pipeStream.IsMessageComplete, "Message is not complete");
+                    Debug.Assert(_pipeStream.IsConnected, "Pipe is steal connected");
+                    return;
+                }
+
                 switch (frame.Message.DataCase)
                 {
                     case Message.DataOneofCase.Request:
-                        if (frame.Message.Request.MethodType is Request.Types.MethodType.Unary or Request.Types.MethodType.ServerStreaming)
-                        {
-                            await HandleUnaryRequest(frame).ConfigureAwait(false);
-                            return;
-                        }
-
+                        _ = HandleRequestAsync(frame);
                         break;
                     case Message.DataOneofCase.RequestControl:
                         switch (frame.Message.RequestControl)
@@ -78,8 +82,10 @@ namespace Ipc.Grpc.NamedPipes.Internal
                                 HandleCancel();
                                 break;
                             case Control.StreamMessage:
+                                await _messageChannel.Append(frame).ConfigureAwait(false);
                                 break;
                             case Control.StreamMessageEnd:
+                                await _messageChannel.SetCompleted().ConfigureAwait(false);
                                 break;
                             case Control.None:
                             default:
@@ -103,7 +109,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public IAsyncStreamReader<TRequest> GetRequestStreamReader<TRequest>(Marshaller<TRequest> requestMarshaller)
         {
-            throw new NotImplementedException();
+            return _messageChannel.GetAsyncStreamReader(Deadline, requestMarshaller.ContextualDeserializer);
         }
 
         public IServerStreamWriter<TResponse> GetResponseStreamWriter<TResponse>(Marshaller<TResponse> responseMarshaller) where TResponse : class
@@ -167,28 +173,23 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         #region Message handlers
 
-        private async ValueTask HandleUnaryRequest(Frame frame)
+        private async ValueTask HandleRequestAsync(Frame frame)//Should never throw
         {
+            await Task.Yield();
+            if (frame.Message.Request.MethodType is Request.Types.MethodType.Unary or Request.Types.MethodType.ServerStreaming)
+                UnaryRequestFrame = frame;
+
             Request request = frame.Message.Request;
-            UnaryRequestFrame = frame;
             Deadline = new Deadline(request.Deadline?.ToDateTime());
             RequestHeaders = MessageBuilder.ToMetadata(request.Headers.Metadata);
-            //Task.Run(async () => await _methodHandlers[message.MethodFullName](this).ConfigureAwait(false));
             await _methodHandlers[request.MethodFullName](this).ConfigureAwait(false);
         }
 
-        //private ValueTask HandleRequestStreamPayload(Frame payload) => _messageChannel.Append(payload);
-
-        //private ValueTask HandleRequestStreamEnd()
-        //{
-        //    return _messageChannel.SetCompleted();
-        //}
-
         private void HandleCancel()
         {
-            Console.WriteLine("Debug : Cancel current operation requested");
+            Console.WriteLine($"{nameof(ServerConnection)} Debug: Cancel current operation requested");
             CancellationTokenSource.Cancel();
-            Console.WriteLine("Debug : Current operation cancelled");
+            Console.WriteLine($"{nameof(ServerConnection)} Debug: Current operation cancelled");
         }
 
         #endregion

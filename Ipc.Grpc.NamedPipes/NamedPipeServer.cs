@@ -58,7 +58,7 @@ namespace Ipc.Grpc.NamedPipes
                 {
                     try
                     {
-                        TRequest request = connection.UnaryRequestFrame.GetPayload(method.RequestMarshaller.ContextualDeserializer);
+                        TRequest request = connection.UnaryRequestFrame!.GetPayload(method.RequestMarshaller.ContextualDeserializer);
                         
                         TResponse response = await handler(request, connection.CallContext).ConfigureAwait(false);
 
@@ -87,13 +87,11 @@ namespace Ipc.Grpc.NamedPipes
                         
                         TResponse response = await handler(requestStreamReader, connection.CallContext).ConfigureAwait(false);
 
-                        await connection.Success(method.ResponseMarshaller, response)
-                                 .ConfigureAwait(false);
+                        await connection.Success(method.ResponseMarshaller, response).ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
-                        await connection.Error(ex)
-                                        .ConfigureAwait(false);
+                        await connection.Error(ex).ConfigureAwait(false);
                     }
                 }
 
@@ -108,7 +106,7 @@ namespace Ipc.Grpc.NamedPipes
                 {
                     try
                     {
-                        TRequest request = connection.UnaryRequestFrame.GetPayload(method.RequestMarshaller.ContextualDeserializer);
+                        TRequest request = connection.UnaryRequestFrame!.GetPayload(method.RequestMarshaller.ContextualDeserializer);
                         IServerStreamWriter<TResponse> responseStreamReader = connection.GetResponseStreamWriter(method.ResponseMarshaller);
 
                         await handler(request, responseStreamReader, connection.CallContext).ConfigureAwait(false);

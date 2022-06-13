@@ -105,24 +105,25 @@ namespace Ipc.Grpc.NamedPipes.Internal
 #endif
         }
 
-        private async Task ListenConnectionsAsync()
+        private async Task ListenConnectionsAsync()//Should never throw
         {
             while (true)
             {
-                //TODO :  Try recycle from PipePool
-                NamedPipeServerStream pipeServer = CreatePipeServer();
+                NamedPipeServerStream? pipeServer = null;
                 try
                 {
+                    //TODO :  Try recycle from PipePool
+                    pipeServer = CreatePipeServer();
                     await pipeServer.WaitForConnectionAsync(_shutdownCancellationTokenSource.Token).ConfigureAwait(false);
                     _ = HandleConnectionAsync(pipeServer);
                 }
                 catch (Exception ex)
                 {
-                    pipeServer.Dispose();
+                    pipeServer?.Dispose();
                     if (_shutdownCancellationTokenSource.IsCancellationRequested)
                         break;
-                    Console.WriteLine($"Error: {ex.Message}");
-                    throw;
+                    Console.WriteLine($"{nameof(ServerListener)} Error while WaitForConnectionAsync: {ex.Message}");
+                    //throw;
                 }
             }
         }
@@ -137,7 +138,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error: {ex.Message}");
+                Console.WriteLine($"{nameof(ServerListener)} Error while ListenMessagesAsync: {ex.Message}");
             }
         }
 

@@ -12,14 +12,17 @@ using Ipc.Grpc.NamedPipes.TransportProtocol;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
-    internal class NamedPipeTransportV3 : IDisposable
+    internal class Transport : IDisposable
     {
         private readonly byte[] _frameHeaderBytes;
         private readonly PipeStream _pipeStream;
 
-        public NamedPipeTransportV3(PipeStream pipeStream)
+        private readonly string _remote;//Debug only
+
+        public Transport(PipeStream pipeStream)
         {
             _pipeStream = pipeStream;
+            _remote = pipeStream is NamedPipeClientStream ? "Server" : "Client";
             _frameHeaderBytes = ArrayPool<byte>.Shared.Rent(FrameHeader.Size);
         }
 
@@ -27,32 +30,29 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             int readBytes = await _pipeStream.ReadAsync(_frameHeaderBytes, 0, FrameHeader.Size, token)
                                              .ConfigureAwait(false);
-            Debug.Assert(readBytes == FrameHeader.Size, "Client does not speak my dialect :/");
+            if (readBytes == 0)
+                return Frame.Eof;
 
             FrameHeader header = FrameHeader.FromSpan(_frameHeaderBytes.AsSpan().Slice(0, FrameHeader.Size));
 
+            //int framePlusPayloadSize = header.PayloadSize + header.MessageSize;
             IMemoryOwner<byte> owner = MemoryPool<byte>.Shared.Rent(header.TotalSize);
-            Memory<byte> framePlusPayloadBytes = owner.Memory.Slice(0, header.TotalSize - FrameHeader.Size);
+            Memory<byte> framePlusPayloadBytes = owner.Memory.Slice(0, header.TotalSize);
 
             readBytes = await _pipeStream.ReadAsync(framePlusPayloadBytes, token)
                                          .ConfigureAwait(false);
 
-            Debug.Assert(readBytes == header.TotalSize - FrameHeader.Size, "Client is a layer !");
+            Debug.Assert(readBytes == header.TotalSize, $"{_remote}  is a layer !");
             Debug.Assert(_pipeStream.IsMessageComplete, "Unexpected message :too long!");
 
 
-            //Message? message = Message.Parser.ParseFrom(framePlusPayloadBytes.Span.Slice(0, header.MessageSize));
-            var payloadBytes = framePlusPayloadBytes.Slice(header.MessageSize);
-            
-            Message message = new(payloadBytes, owner);
-            message.MergeFrom(framePlusPayloadBytes.Span.Slice(0, header.MessageSize));
-            //if (header.PayloadSize == 0)
-            //{
-            //    owner.Dispose();
-            //    return (message, null, null);
-            //}
-            //var payloadBytes = framePlusPayloadBytes.Slice(header.MessageSize);
-            var packet = new Frame(message, payloadBytes, owner);
+            Message? message = Message.Parser.ParseFrom(framePlusPayloadBytes.Span.Slice(0, header.MessageSize));
+            Memory<byte> payloadBytes = framePlusPayloadBytes.Slice(header.MessageSize);
+
+            //Message message = new(payloadBytes, owner);
+            //message.MergeFrom(framePlusPayloadBytes.Span.Slice(0, header.MessageSize));
+
+            Frame packet = new(message, payloadBytes, owner);
             return packet;
         }
 
@@ -61,12 +61,12 @@ namespace Ipc.Grpc.NamedPipes.Internal
             using MemorySerializationContext serializationContext = new(frame.Message);
             frame.PayloadSerializer(frame.Payload, serializationContext);
 
-            Memory<byte> bytes = serializationContext.Bytes;
+            Memory<byte> frameBytes = serializationContext.Bytes;
 
-            Memory<byte> headerBytes = bytes.Slice(0, FrameHeader.Size);
-            FrameHeader.Write(headerBytes.Span, bytes.Length, serializationContext.MessageSize);
+            Memory<byte> headerBytes = frameBytes.Slice(0, FrameHeader.Size);
+            FrameHeader.Write(headerBytes.Span, serializationContext.MessageSize, serializationContext.PayloadSize);
 
-            return _pipeStream.WriteAsync(bytes, token);
+            return _pipeStream.WriteAsync(frameBytes, token);
         }
 
         public ValueTask SendFrame(Message message, CancellationToken token = default)
@@ -77,7 +77,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             Memory<byte> frameBytes = memoryOwner.Memory.Slice(0, FrameHeader.Size + msgSize);
             //#1 : frame header
             Memory<byte> headerBytes = frameBytes.Slice(0, FrameHeader.Size);
-            FrameHeader.Write(headerBytes.Span, frameBytes.Length, msgSize);
+            FrameHeader.Write(headerBytes.Span, msgSize,0);
             //#2 : Message
             Memory<byte> messageBytes = frameBytes.Slice(FrameHeader.Size);
             message.WriteTo(messageBytes.Span);
@@ -95,26 +95,26 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             public const int Size = 2 * sizeof(int);
 
-            public FrameHeader(int totalSize, int messageSize)
+            public FrameHeader(int messageSize, int payloadSize)
             {
-                TotalSize = totalSize;
+                PayloadSize = payloadSize;
                 MessageSize = messageSize;
             }
 
-            public int TotalSize { get; }
-
             public int MessageSize { get; }
 
-            public int PayloadSize => TotalSize - MessageSize;
+            public int PayloadSize { get; }
+
+            public int TotalSize => MessageSize + PayloadSize;
 
             public static FrameHeader FromSpan(ReadOnlySpan<byte> span)
             {
                 return MemoryMarshal.Read<FrameHeader>(span);
             }
 
-            public static void Write(Span<byte> destination, int totalSize, int frameSize)
+            public static void Write(Span<byte> destination, int messageSize, int payloadSize)
             {
-                long bytes = totalSize + ((long)frameSize << 32);
+                long bytes = messageSize + ((long)payloadSize << 32);
                 MemoryMarshal.Write(destination, ref bytes);
             }
 
@@ -124,11 +124,11 @@ namespace Ipc.Grpc.NamedPipes.Internal
             {
                 unchecked
                 {
-                    return (TotalSize * 397) ^ MessageSize;
+                    return (MessageSize * 397) ^ PayloadSize;
                 }
             }
 
-            public bool Equals(FrameHeader other) => TotalSize == other.TotalSize && MessageSize == other.MessageSize;
+            public bool Equals(FrameHeader other) => PayloadSize == other.PayloadSize && MessageSize == other.MessageSize;
 
             public override bool Equals(object? obj) => obj is FrameHeader other && Equals(other);
 

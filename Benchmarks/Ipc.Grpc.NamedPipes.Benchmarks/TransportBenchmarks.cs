@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Buffers;
-using System.IO;
-using System.Threading;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
-using Google.Protobuf;
 using Ipc.Grpc.NamedPipes.Benchmarks.Helpers;
 using Ipc.Grpc.NamedPipes.Internal;
 using Ipc.Grpc.NamedPipes.TransportProtocol;
@@ -24,8 +20,8 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
         private PipeChannel _channel;
         private byte[] _expectedRequestPayload;
         private Message _expectedRequest;
-        private NamedPipeTransportV2 _clientTransport;
-        private NamedPipeTransportV2 _serverTransport;
+        private Transport _clientTransport;
+        private Transport _serverTransport;
 
 
         [GlobalSetup]
@@ -44,8 +40,8 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
             _expectedRequestPayload = new byte[100];
             random.NextBytes(_expectedRequestPayload);
 
-            _clientTransport = new NamedPipeTransportV2(_channel.ClientStream);
-            _serverTransport = new NamedPipeTransportV2(_channel.ServerStream);
+            _clientTransport = new Transport(_channel.ClientStream);
+            _serverTransport = new Transport(_channel.ServerStream);
 
         }
 
@@ -64,74 +60,11 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
             int i = 0;
             for (; i < Iterations; i++)
             {
-                var task = _serverTransport.ReadFrame3();
-                await _clientTransport.SendFrame3(_expectedRequest, SerializeRequestPayload3);
-                await task;
-            }
-            return i;
-        }
-
-        [Benchmark]
-        public async Task<int> SendFrame2()
-        {
-            int i = 0;
-            for (; i < Iterations; i++)
-            {
                 var task = _serverTransport.ReadFrame();
-                await _clientTransport.SendFrame2(_expectedRequest, SerializeRequestPayload2);
+                await _clientTransport.SendFrame(_expectedRequest);
                 await task;
             }
             return i;
         }
-
-        [Benchmark]
-        public async Task<int> SendFrame()
-        {
-            int i = 0;
-            for (; i < Iterations; i++)
-            {
-                var task = _serverTransport.ReadFrame();
-                await _clientTransport.SendFrame(_expectedRequest, SerializeRequestPayload1);
-                await task;
-            }
-            return i;
-        }
-
-
-        private (Memory<byte> MsgBytes, int frameSize) SerializeRequestPayload3(Message message)
-        {
-            int padding = NamedPipeTransportV2.FrameHeader.Size;
-            int frameSize = message.CalculateSize();
-            //All
-            var owner = MemoryPool<byte>.Shared.Rent(padding + frameSize + _expectedRequestPayload.Length);
-            Memory<byte> messageBytes = owner.Memory.Slice(0, padding + frameSize + _expectedRequestPayload.Length);
-            //#1 : will be set later in send method
-
-            //#2 : frame
-            Memory<byte> frameBytes = messageBytes.Slice(padding, frameSize);
-            message.WriteTo(frameBytes.Span);
-            //#3 : payload
-            Memory<byte> payLoadBytes = messageBytes.Slice(padding + frameSize);
-            _expectedRequestPayload.AsMemory()
-                                   .CopyTo(payLoadBytes);
-
-            return (messageBytes, frameSize);
-        }
-
-        private (Memory<byte>, int) SerializeRequestPayload2(Message message)
-        {
-            int frameSize = message.CalculateSize();
-            var owner = MemoryPool<byte>.Shared.Rent(frameSize + _expectedRequestPayload.Length);
-            Memory<byte> messageBytes = owner.Memory.Slice(0, frameSize + _expectedRequestPayload.Length);
-            message.WriteTo(messageBytes.Span.Slice(0, frameSize));
-
-            Memory<byte> payLoadBytes = messageBytes.Slice(frameSize);
-            _expectedRequestPayload.AsMemory()
-                                   .CopyTo(payLoadBytes);
-
-            return (messageBytes, _expectedRequestPayload.Length);
-        }
-
-        private void SerializeRequestPayload1(MemoryStream stream) => stream.Write(_expectedRequestPayload, 0, 100);
     }
 }

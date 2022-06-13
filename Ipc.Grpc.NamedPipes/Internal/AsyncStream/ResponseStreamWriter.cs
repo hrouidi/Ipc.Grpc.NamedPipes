@@ -12,9 +12,9 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly Func<bool> _isCompleted;
         private readonly CancellationToken _cancellationToken;
         private readonly Action<TResponse, SerializationContext> _payloadSerializer;
-        private readonly NamedPipeTransportV3 _transport;
+        private readonly Transport _transport;
 
-        public ResponseStreamWriter(NamedPipeTransportV3 transport, CancellationToken cancellationToken, Action<TResponse, SerializationContext> payloadSerializer, Func<bool> isCompleted)
+        public ResponseStreamWriter(Transport transport, CancellationToken cancellationToken, Action<TResponse, SerializationContext> payloadSerializer, Func<bool> isCompleted)
         {
             _transport = transport;
             _cancellationToken = cancellationToken;

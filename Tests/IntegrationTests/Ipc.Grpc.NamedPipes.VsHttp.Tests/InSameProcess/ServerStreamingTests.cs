@@ -13,8 +13,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
     public class ServerStreamingTests
     {
         public const int TestTimeout = 3000;
-
-
+        
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task ServerStreaming(ChannelContextFactory factory)
@@ -28,61 +27,6 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             Assert.True(await call.ResponseStream.MoveNext());
             Assert.That(call.ResponseStream.Current.Value, Is.EqualTo(1));
             Assert.False(await call.ResponseStream.MoveNext());
-        }
-
-        [Test, Timeout(3000)]
-        [TestCaseSource(typeof(MultiChannelSource))]
-        public async Task CancelServerStreaming(ChannelContextFactory factory)
-        {
-            using var ctx = factory.Create();
-            var cts = new CancellationTokenSource();
-            var call = ctx.Client.DelayedServerStreaming(new RequestMessage { Value = 3 },
-                cancellationToken: cts.Token);
-            Assert.True(await call.ResponseStream.MoveNext());
-            Assert.That(call.ResponseStream.Current.Value, Is.EqualTo(3));
-            cts.Cancel();
-            var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseStream.MoveNext());
-            Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Cancelled));
-        }
-
-        [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(MultiChannelSource))]
-        public Task CancelServerStreamingBeforeCall(ChannelContextFactory factory)
-        {
-            using var ctx = factory.Create();
-            var cts = new CancellationTokenSource();
-            cts.Cancel();
-            var call = ctx.Client.DelayedServerStreaming(new RequestMessage { Value = 3 },
-                cancellationToken: cts.Token);
-            var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseStream.MoveNext());
-            Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Cancelled));
-            return Task.CompletedTask;
-        }
-
-        [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(MultiChannelSource))]
-        public async Task DisposeWhileAwaiting_ShouldSendCancelRemoteAndThrowCanceledRpcException_Test(ChannelContextFactory factory)
-        {
-
-            using ChannelContext ctx = factory.Create();
-            AsyncServerStreamingCall<ResponseMessage> call = ctx.Client.DelayedServerStreaming(new RequestMessage { Value = 3 });
-            Assert.True(await call.ResponseStream.MoveNext());
-            call.Dispose();
-
-            var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseStream.MoveNext());
-            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
-        }
-
-        [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(MultiChannelSource))]
-        public async Task ThrowingServerStreaming(ChannelContextFactory factory)
-        {
-            using var ctx = factory.Create();
-            var call = ctx.Client.ThrowingServerStreaming(new RequestMessage { Value = 1 });
-            Assert.True(await call.ResponseStream.MoveNext());
-            var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseStream.MoveNext());
-            Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Unknown));
-            StringAssert.StartsWith("Exception was thrown by handler",exception.Status.Detail);
         }
 
         [Test, Timeout(TestTimeout)]
@@ -111,79 +55,88 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             Assert.That(exception.Message, Is.EqualTo("Response stream has already been completed."));
         }
 
+        //[Test, Timeout(TestTimeout)]
+        //[TestCaseSource(typeof(MultiChannelSource))]
+        public void SetStatus(ChannelContextFactory factory)
+        {
+
+        }
+
+        //[Test, Timeout(TestTimeout)]
+        //[TestCaseSource(typeof(MultiChannelSource))]
+        public async Task SetHeadersAndTrailers(ChannelContextFactory factory)
+        {
+
+        }
+
+        #region Cancel tests
+
+        [Test, Timeout(3000)]
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public async Task CancelServerStreaming(ChannelContextFactory factory)
+        {
+            using var ctx = factory.Create();
+            var cts = new CancellationTokenSource();
+            var call = ctx.Client.DelayedServerStreaming(new RequestMessage { Value = 3 }, cancellationToken: cts.Token);
+            Assert.True(await call.ResponseStream.MoveNext());
+            Assert.That(call.ResponseStream.Current.Value, Is.EqualTo(3));
+            cts.Cancel();
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseStream.MoveNext());
+            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
+        }
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
-        public Task SetStatus(ChannelContextFactory factory)
+        public Task CancelServerStreamingBeforeCall(ChannelContextFactory factory)
         {
             using var ctx = factory.Create();
-            var call = ctx.Client.SetStatusAsync(new RequestMessage());
-            var exception = Assert.ThrowsAsync<RpcException>(async () => await call);
-            Assert.That(exception.Status.StatusCode, Is.EqualTo(StatusCode.InvalidArgument));
-            Assert.That(exception.Status.Detail, Is.EqualTo("invalid argument"));
+            var cts = new CancellationTokenSource();
+            cts.Cancel();
+            var call = ctx.Client.DelayedServerStreaming(new RequestMessage { Value = 3 },
+                cancellationToken: cts.Token);
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseStream.MoveNext());
+            Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Cancelled));
             return Task.CompletedTask;
         }
 
-        [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(MultiChannelSource))]
-        public Task Deadline(ChannelContextFactory factory)
-        {
-            using var ctx = factory.Create();
-            var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(1);
-            var call = ctx.Client.DelayedUnaryAsync(new RequestMessage(), deadline: deadline);
-            var exception = Assert.ThrowsAsync<RpcException>(async () => await call);
-            Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.DeadlineExceeded));
-            return Task.CompletedTask;
-        }
+        #endregion
+
+        #region Dispose tests
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
-        public Task AlreadyExpiredDeadline(ChannelContextFactory factory)
+        public async Task DisposeWhileAwaiting_ShouldSendCancelRemoteAndThrowCanceledRpcException_Test(ChannelContextFactory factory)
         {
-            using var ctx = factory.Create();
-            var deadline = DateTime.UtcNow - TimeSpan.FromSeconds(0.1);
-            var call = ctx.Client.SimpleUnaryAsync(new RequestMessage(), deadline: deadline);
-            var exception = Assert.ThrowsAsync<RpcException>(async () => await call);
-            Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.DeadlineExceeded));
-            Assert.False(ctx.Impl.SimplyUnaryCalled);
-            return Task.CompletedTask;
+
+            using ChannelContext ctx = factory.Create();
+            AsyncServerStreamingCall<ResponseMessage> call = ctx.Client.DelayedServerStreaming(new RequestMessage { Value = 3 });
+            Assert.True(await call.ResponseStream.MoveNext());
+            call.Dispose();
+
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseStream.MoveNext());
+            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
         }
+
+        #endregion
+
+        #region Deadline tests
+
+        #endregion
+
+        #region Exceptions forwarding tests
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
-        public async Task HeadersAndTrailers(ChannelContextFactory factory)
+        public async Task ThrowingServerStreaming(ChannelContextFactory factory)
         {
             using var ctx = factory.Create();
-            var requestHeaders = new Metadata
-            {
-                {"A1", "1"},
-                {"A2-bin", new[] {(byte) 2}},
-            };
-            var responseHeaders = new Metadata
-            {
-                {"B1", "1"},
-                {"B2-bin", new[] {(byte) 2}},
-            };
-            var responseTrailers = new Metadata
-            {
-                {"C1", "1"},
-                {"C2-bin", new[] {(byte) 2}},
-            };
-
-            ctx.Impl.ResponseHeaders = responseHeaders;
-            ctx.Impl.ResponseTrailers = responseTrailers;
-            AsyncUnaryCall<ResponseMessage> call = ctx.Client.HeadersTrailersAsync(new RequestMessage { Value = 1 }, requestHeaders);
-
-            var actualResponseHeaders = await call.ResponseHeadersAsync;
-            await call.ResponseAsync;
-            var actualResponseTrailers = call.GetTrailers();
-            var actualStatus = call.GetStatus();
-            var actualRequestHeaders = ctx.Impl.RequestHeaders;
-
-            MetadataAssert.AreEquivalent(requestHeaders, actualRequestHeaders);
-            MetadataAssert.AreEquivalent(responseHeaders, actualResponseHeaders);
-            MetadataAssert.AreEquivalent(responseTrailers, actualResponseTrailers);
-            Assert.That(actualStatus.StatusCode, Is.EqualTo(StatusCode.OK));
+            var call = ctx.Client.ThrowingServerStreaming(new RequestMessage { Value = 1 });
+            Assert.True(await call.ResponseStream.MoveNext());
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseStream.MoveNext());
+            Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Unknown));
+            StringAssert.StartsWith("Exception was thrown by handler", exception.Status.Detail);
         }
+
+        #endregion
     }
 }
