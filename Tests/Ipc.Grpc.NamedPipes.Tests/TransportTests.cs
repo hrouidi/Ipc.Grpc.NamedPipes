@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Threading.Tasks;
 using AutoFixture;
-using Ipc.Grpc.NamedPipes.Internal;
 using Ipc.Grpc.NamedPipes.Tests.Helpers;
-using Ipc.Grpc.NamedPipes.TransportProtocol;
 using NUnit.Framework;
 using Grpc.Core;
+using Ipc.Grpc.NamedPipes.Internal.Transport;
+using Message = Ipc.Grpc.NamedPipes.Internal.Transport.Message;
 
 namespace Ipc.Grpc.NamedPipes.Tests;
 
@@ -15,9 +15,9 @@ public class TransportTests
     public void FrameHeader_Tests()
     {
         Span<byte> bytes = stackalloc byte[8];
-        Transport.FrameHeader header1 = new(15, 8);
-        Transport.FrameHeader.Write(bytes, 15, 8);
-        Transport.FrameHeader header2 = Transport.FrameHeader.FromSpan(bytes);
+        NamedPipeTransport.FrameHeader header1 = new(15, 8);
+        NamedPipeTransport.FrameHeader.Write(bytes, 15, 8);
+        NamedPipeTransport.FrameHeader header2 = NamedPipeTransport.FrameHeader.FromSpan(bytes);
         Assert.That(header1, Is.EqualTo(header2));
     }
 
@@ -31,8 +31,8 @@ public class TransportTests
         var expectedRequest = fixture.Create<Message>();
         var expectedResponse = fixture.Create<Message>();
 
-        using var clientTransport = new Transport(channel.ClientStream);
-        using var serverTransport = new Transport(channel.ServerStream);
+        using var clientTransport = new NamedPipeTransport(channel.ClientStream);
+        using var serverTransport = new NamedPipeTransport(channel.ServerStream);
 
         //Act
         var readRequestTask = serverTransport.ReadFrame();
@@ -61,8 +61,8 @@ public class TransportTests
         var expectedResponse = fixture.Create<Message>();
         string expectedResponsePayload = "expectedResponsePayload";
 
-        using var clientTransport = new Transport(channel.ClientStream);
-        using var serverTransport = new Transport(channel.ServerStream);
+        using var clientTransport = new NamedPipeTransport(channel.ClientStream);
+        using var serverTransport = new NamedPipeTransport(channel.ServerStream);
 
         //Act
         var readRequestTask = serverTransport.ReadFrame();

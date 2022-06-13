@@ -3,9 +3,8 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using Grpc.Core;
-using Ipc.Grpc.NamedPipes.TransportProtocol;
 
-namespace Ipc.Grpc.NamedPipes.Internal;
+namespace Ipc.Grpc.NamedPipes.Internal.Transport;
 
 
 //TODO: replace by Message class (partial class extended)

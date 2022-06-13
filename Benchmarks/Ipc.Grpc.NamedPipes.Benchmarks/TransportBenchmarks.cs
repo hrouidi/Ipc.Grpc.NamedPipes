@@ -3,8 +3,9 @@ using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using Ipc.Grpc.NamedPipes.Benchmarks.Helpers;
 using Ipc.Grpc.NamedPipes.Internal;
-using Ipc.Grpc.NamedPipes.TransportProtocol;
+using Ipc.Grpc.NamedPipes.Internal.Transport;
 using Perfolizer.Mathematics.OutlierDetection;
+using Message = Ipc.Grpc.NamedPipes.Internal.Transport.Message;
 
 namespace Ipc.Grpc.NamedPipes.Benchmarks
 {
@@ -20,8 +21,8 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
         private PipeChannel _channel;
         private byte[] _expectedRequestPayload;
         private Message _expectedRequest;
-        private Transport _clientTransport;
-        private Transport _serverTransport;
+        private NamedPipeTransport _clientTransporter;
+        private NamedPipeTransport _serverTransporter;
 
 
         [GlobalSetup]
@@ -40,8 +41,8 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
             _expectedRequestPayload = new byte[100];
             random.NextBytes(_expectedRequestPayload);
 
-            _clientTransport = new Transport(_channel.ClientStream);
-            _serverTransport = new Transport(_channel.ServerStream);
+            _clientTransporter = new NamedPipeTransport(_channel.ClientStream);
+            _serverTransporter = new NamedPipeTransport(_channel.ServerStream);
 
         }
 
@@ -50,8 +51,8 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
         public void IterationCleanup()
         {
             _channel.Dispose();
-            _clientTransport.Dispose();
-            _serverTransport.Dispose();
+            _clientTransporter.Dispose();
+            _serverTransporter.Dispose();
         }
 
         [Benchmark(Baseline = true)]
@@ -60,8 +61,8 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
             int i = 0;
             for (; i < Iterations; i++)
             {
-                var task = _serverTransport.ReadFrame();
-                await _clientTransport.SendFrame(_expectedRequest);
+                var task = _serverTransporter.ReadFrame();
+                await _clientTransporter.SendFrame(_expectedRequest);
                 await task;
             }
             return i;

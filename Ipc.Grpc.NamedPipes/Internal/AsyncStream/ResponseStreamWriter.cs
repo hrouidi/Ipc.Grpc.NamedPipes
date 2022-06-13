@@ -3,7 +3,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
-using Ipc.Grpc.NamedPipes.TransportProtocol;
+using Ipc.Grpc.NamedPipes.Internal.Transport;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
@@ -12,9 +12,9 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly Func<bool> _isCompleted;
         private readonly CancellationToken _cancellationToken;
         private readonly Action<TResponse, SerializationContext> _payloadSerializer;
-        private readonly Transport _transport;
+        private readonly NamedPipeTransport _transport;
 
-        public ResponseStreamWriter(Transport transport, CancellationToken cancellationToken, Action<TResponse, SerializationContext> payloadSerializer, Func<bool> isCompleted)
+        public ResponseStreamWriter(NamedPipeTransport transport, CancellationToken cancellationToken, Action<TResponse, SerializationContext> payloadSerializer, Func<bool> isCompleted)
         {
             _transport = transport;
             _cancellationToken = cancellationToken;

@@ -4,10 +4,8 @@ using Google.Protobuf;
 using Google.Protobuf.Collections;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Ipc.Grpc.NamedPipes.TransportProtocol;
 
-
-namespace Ipc.Grpc.NamedPipes.Internal
+namespace Ipc.Grpc.NamedPipes.Internal.Transport
 {
     internal static class MessageBuilder
     {

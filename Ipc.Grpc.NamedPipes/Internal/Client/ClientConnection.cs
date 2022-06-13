@@ -6,7 +6,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
 using Ipc.Grpc.NamedPipes.Internal.Helpers;
-using Ipc.Grpc.NamedPipes.TransportProtocol;
+using Ipc.Grpc.NamedPipes.Internal.Transport;
+using Message = Ipc.Grpc.NamedPipes.Internal.Transport.Message;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
@@ -20,7 +21,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly TRequest _request;
 
         private readonly TaskCompletionSource<Metadata> _responseHeadersTcs;
-        private readonly Transport _transport;
+        private readonly NamedPipeTransport _transport;
         private readonly CancellationTokenSource _disposeCts;
         private readonly CancellationTokenSource _combinedCts;
         private readonly MessageChannel _messageChannel;
@@ -42,7 +43,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _request = request;
 
             _deadline = new Deadline(callOptions.Deadline);
-            _transport = new Transport(_pipeStream);
+            _transport = new NamedPipeTransport(_pipeStream);
             _responseHeadersTcs = new TaskCompletionSource<Metadata>(TaskCreationOptions.RunContinuationsAsynchronously);
             _disposeCts = new CancellationTokenSource();
             _combinedCts = CancellationTokenSource.CreateLinkedTokenSource(_callOptions.CancellationToken, _deadline.Token, _disposeCts.Token);

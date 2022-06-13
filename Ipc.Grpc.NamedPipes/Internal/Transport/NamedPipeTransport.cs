@@ -6,20 +6,19 @@ using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Ipc.Grpc.NamedPipes.Internal.Helpers;
 using Google.Protobuf;
-using Ipc.Grpc.NamedPipes.TransportProtocol;
+using Ipc.Grpc.NamedPipes.Internal.Helpers;
 
-namespace Ipc.Grpc.NamedPipes.Internal
+namespace Ipc.Grpc.NamedPipes.Internal.Transport
 {
-    internal class Transport : IDisposable
+    internal class NamedPipeTransport : IDisposable
     {
         private readonly byte[] _frameHeaderBytes;
         private readonly PipeStream _pipeStream;
 
         private readonly string _remote;//Debug only
 
-        public Transport(PipeStream pipeStream)
+        public NamedPipeTransport(PipeStream pipeStream)
         {
             _pipeStream = pipeStream;
             _remote = pipeStream is NamedPipeClientStream ? "Server" : "Client";
@@ -80,7 +79,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             FrameHeader.Write(headerBytes.Span, msgSize,0);
             //#2 : Message
             Memory<byte> messageBytes = frameBytes.Slice(FrameHeader.Size);
-            message.WriteTo(messageBytes.Span);
+            MessageExtensions.WriteTo((IMessage)message, messageBytes.Span);
 
             return _pipeStream.WriteAsync(frameBytes, token);
         }

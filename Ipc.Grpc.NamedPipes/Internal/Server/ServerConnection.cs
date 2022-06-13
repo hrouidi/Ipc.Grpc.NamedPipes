@@ -7,7 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
 using Ipc.Grpc.NamedPipes.Internal.Helpers;
-using Ipc.Grpc.NamedPipes.TransportProtocol;
+using Ipc.Grpc.NamedPipes.Internal.Transport;
+using Message = Ipc.Grpc.NamedPipes.Internal.Transport.Message;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
@@ -16,7 +17,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> _methodHandlers;
         private readonly MessageChannel _messageChannel;
         private readonly NamedPipeServerStream _pipeStream;
-        private readonly Transport _transport;
+        private readonly NamedPipeTransport _transport;
 
         public CancellationTokenSource CancellationTokenSource { get; }
 
@@ -34,7 +35,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             CallContext = new NamedPipeCallContext(this);
             _pipeStream = pipeStream;
-            _transport = new Transport(pipeStream);
+            _transport = new NamedPipeTransport(pipeStream);
             _methodHandlers = methodHandlers;
             CancellationTokenSource = new CancellationTokenSource();
             Deadline = Deadline.None;

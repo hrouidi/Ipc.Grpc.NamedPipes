@@ -2,8 +2,9 @@
 using System.Buffers;
 using System.Diagnostics;
 using Grpc.Core;
-using Ipc.Grpc.NamedPipes.TransportProtocol;
 using Google.Protobuf;
+using Ipc.Grpc.NamedPipes.Internal.Transport;
+using Message = Ipc.Grpc.NamedPipes.Internal.Transport.Message;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
@@ -32,7 +33,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         public override void Complete(byte[] payload) // worst case , buffer is already allocated
         {
             PayloadSize = payload.Length;
-            int padding = Transport.FrameHeader.Size;
+            int padding = NamedPipeTransport.FrameHeader.Size;
             //All
             MemoryOwner = MemoryPool<byte>.Shared.Rent(padding + MessageSize + payload.Length);
             Memory<byte> bytes = MemoryOwner.Memory.Slice(0, padding + MessageSize + payload.Length);
@@ -55,7 +56,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         public override void SetPayloadLength(int payloadLength) // best case: size is known before allocating the buffer
         {
             PayloadSize = payloadLength;
-            int padding = Transport.FrameHeader.Size;
+            int padding = NamedPipeTransport.FrameHeader.Size;
             //All
             MemoryOwner = MemoryPool<byte>.Shared.Rent(padding + MessageSize + PayloadSize);
             Bytes = MemoryOwner.Memory.Slice(0, padding + MessageSize + PayloadSize);
@@ -70,7 +71,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public override void Complete()
         {
-            Debug.Assert(Bytes.Length == Transport.FrameHeader.Size + MessageSize + _payloadBytes.Length);
+            Debug.Assert(Bytes.Length == NamedPipeTransport.FrameHeader.Size + MessageSize + _payloadBytes.Length);
         }
 
         public void Dispose()

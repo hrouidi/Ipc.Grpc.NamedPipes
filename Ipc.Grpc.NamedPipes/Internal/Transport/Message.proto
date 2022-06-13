@@ -3,7 +3,7 @@ syntax = "proto3";
 
 import "google/protobuf/timestamp.proto";
 
-package Ipc.Grpc.NamedPipes.TransportProtocol;
+package Ipc.Grpc.NamedPipes.Internal.Transport;
 
 //TODO: move this to FrameHeader
 message Message {

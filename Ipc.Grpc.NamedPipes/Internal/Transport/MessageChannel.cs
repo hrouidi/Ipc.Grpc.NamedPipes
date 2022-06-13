@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using Ipc.Grpc.NamedPipes.Internal.Helpers;
 
-namespace Ipc.Grpc.NamedPipes.Internal
+namespace Ipc.Grpc.NamedPipes.Internal.Transport
 {
     internal class MessageChannel
     {

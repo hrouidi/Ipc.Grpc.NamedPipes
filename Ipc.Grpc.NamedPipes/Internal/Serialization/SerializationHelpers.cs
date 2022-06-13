@@ -1,7 +1,7 @@
 ﻿
 using System.IO;
 using Grpc.Core;
-using Ipc.Grpc.NamedPipes.TransportProtocol;
+using Message = Ipc.Grpc.NamedPipes.Internal.Transport.Message;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
