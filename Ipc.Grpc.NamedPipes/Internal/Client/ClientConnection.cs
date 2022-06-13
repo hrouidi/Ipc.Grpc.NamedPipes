@@ -110,8 +110,6 @@ namespace Ipc.Grpc.NamedPipes.Internal
             return new RequestStreamWriter<TRequest>(_transport, _method.RequestMarshaller.ContextualSerializer, _combinedCts.Token, _sendTask);
         }
 
-
-
         private void EnsureResponseHeadersSet(Metadata headers = null)
         {
             _responseHeadersTcs.TrySetResult(headers ?? new Metadata());
@@ -147,7 +145,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             catch (Exception ex)
             {
                 Interlocked.Exchange(ref _isInServerSide, 0);
-                await _messageChannel.SetError(ex).ConfigureAwait(false);
+                _messageChannel.SetError(ex);
                 return MessageChannel.MapException(ex, _deadline);
             }
             return null;
@@ -162,7 +160,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                     Message message = await _transport.ReadFrame(token).ConfigureAwait(false);
                     if (message == Message.Eof)
                     {
-                        await _messageChannel.SetError(new EndOfStreamException($"Server reply never received:")).ConfigureAwait(false);
+                        _messageChannel.SetError(new EndOfStreamException($"Server reply never received:"));
                         return;
                     }
                     switch (message.DataCase)
@@ -181,11 +179,11 @@ namespace Ipc.Grpc.NamedPipes.Internal
                             if (_status.StatusCode == StatusCode.OK)
                             {
                                 if (_method.Type is MethodType.Unary or MethodType.ClientStreaming)
-                                    await _messageChannel.Append(message).ConfigureAwait(false);
-                                await _messageChannel.SetCompleted().ConfigureAwait(false);
+                                    _messageChannel.Append(message);
+                                _messageChannel.SetCompleted();
                                 return;
                             }
-                            await _messageChannel.SetError(new RpcException(_status)).ConfigureAwait(false);
+                            _messageChannel.SetError(new RpcException(_status));
                             message.Dispose();
                             return;
 
@@ -195,7 +193,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                             message.Dispose();
                             break;
                         case Message.DataOneofCase.Streaming:
-                            await _messageChannel.Append(message).ConfigureAwait(false);
+                            _messageChannel.Append(message);
                             message.Dispose();
                             break;
                         case Message.DataOneofCase.None:
@@ -212,7 +210,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
             catch (Exception e)
             {
-                await _messageChannel.SetError(e).ConfigureAwait(false);
+                _messageChannel.SetError(e);
             }
         }
     }

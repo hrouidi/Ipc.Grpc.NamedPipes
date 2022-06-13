@@ -31,30 +31,29 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
         public MessageChannel(CancellationToken connectionCancellationToken)
         {
             _connectionCancellationToken = connectionCancellationToken;
-            //_channel = Channel.CreateUnbounded<ItemInfo>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
-            _channel = Channel.CreateUnbounded<ItemInfo>();
+            _channel = Channel.CreateUnbounded<ItemInfo>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+            //_channel = Channel.CreateUnbounded<ItemInfo>();
         }
 
-
-        public ValueTask Append(Message message)
+        public void Append(Message message)
         {
-            return _channel.Writer.WriteAsync(new ItemInfo(message));
+            _channel.Writer.TryWrite(new ItemInfo(message));
         }
 
-        public ValueTask SetCompleted()
+        public void SetCompleted()
         {
-            return _channel.Writer.WriteAsync(ItemInfo.Completed);
+            _channel.Writer.TryWrite(ItemInfo.Completed);
         }
 
-        public ValueTask SetError(Exception ex)
+        public void SetError(Exception ex)
         {
-            return _channel.Writer.WriteAsync(new ItemInfo(ex));
+            _channel.Writer.TryWrite(new ItemInfo(ex));
         }
 
 
         public async ValueTask<TPayload> ReadAsync<TPayload>(Deadline deadline, Func<DeserializationContext, TPayload> deserializer) where TPayload : class
         {
-            ItemInfo ret = await SafeReadAsync(deadline, _connectionCancellationToken).ConfigureAwait(false); 
+            ItemInfo ret = await SafeReadAsync(deadline, _connectionCancellationToken).ConfigureAwait(false);
 
             if (ret.Error != null)
                 throw MapException(ret.Error, deadline);
@@ -77,7 +76,7 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
         {
             try
             {
-                return await _channel.Reader.ReadAsync(cancellationToken).ConfigureAwait(false); 
+                return await _channel.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (Exception e)
             {

@@ -44,19 +44,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public void Dispose()
         {
-            try
-            {
-                //_pipeStream.Flush();
-                //_pipeStream.WaitForPipeDrain();
-                //_pipeStream.Disconnect();
-                //TODO: recycle this instance in PipePool instead of disposing it
-                
-                _transport.Dispose();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"{nameof(ServerConnection)} Error while disposing: {ex.Message}");
-            }
+            _transport.Dispose();
         }
 
         public async Task ListenMessagesAsync(CancellationToken shutdownToken)
@@ -67,8 +55,9 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
                 if (message == Message.Eof) //gracefully end the task
                 {
-                    Debug.Assert(IsCompleted, "invalid end");
-                    Debug.Assert(_pipeStream.IsMessageComplete, "Message is not complete");
+                    //Debug.Assert(IsCompleted, "invalid end");
+                    //Debug.Assert(_pipeStream.IsMessageComplete, "Message is not complete");
+                    //TODO: recycle this instance in PipePool instead of disposing it
                     _pipeStream.Dispose();
                     return;
                 }
@@ -83,10 +72,10 @@ namespace Ipc.Grpc.NamedPipes.Internal
                         message.Dispose();
                         break;
                     case Message.DataOneofCase.Streaming:
-                        await _messageChannel.Append(message).ConfigureAwait(false);
+                        _messageChannel.Append(message);
                         break;
                     case Message.DataOneofCase.StreamingEnd:
-                        await _messageChannel.SetCompleted().ConfigureAwait(false);
+                        _messageChannel.SetCompleted();
                         message.Dispose();
                         break;
                     case Message.DataOneofCase.ResponseHeaders:
