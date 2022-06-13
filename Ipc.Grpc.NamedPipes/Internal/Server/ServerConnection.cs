@@ -103,7 +103,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public ValueTask SendResponseHeaders(Metadata responseHeaders)
         {
-            Message message = MessageBuilder.BuildResponseHeadersMessage(responseHeaders);
+            Message message = MessageBuilder.BuildResponseHeaders(responseHeaders);
             return _transport.SendFrame(message, CancellationTokenSource.Token);
         }
 
@@ -126,13 +126,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 _ => (CallContext.Status.StatusCode, CallContext.Status.Detail)
             };
 
-            Message message = new()
-            {
-                Response = new Response
-                {
-                    Trailers = MessageBuilder.BuildTrailers(CallContext.ResponseTrailers, status, detail),
-                }
-            };
+            Message message = MessageBuilder.BuildReply(CallContext.ResponseTrailers, status, detail);
             if (response != null && marshaller != null)
             {
                 FrameInfo<TResponse> frameInfo = new(message, response, marshaller.ContextualSerializer);
@@ -146,13 +140,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             IsCompleted = true;
             (StatusCode status, string detail) = GetStatus();
 
-            Message message = new()
-            {
-                Response = new Response
-                {
-                    Trailers = MessageBuilder.BuildTrailers(CallContext.ResponseTrailers, status, detail),
-                }
-            };
+            Message message = MessageBuilder.BuildReply(CallContext.ResponseTrailers, status, detail);
             return _transport.SendFrame(message, CallContext.CancellationToken);
 
             (StatusCode status, string detail) GetStatus()
@@ -181,7 +169,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
             Request request = frame.Message.Request;
             Deadline = new Deadline(request.Deadline?.ToDateTime());
-            RequestHeaders = MessageBuilder.ToMetadata(request.Headers.Metadata);
+            RequestHeaders = MessageBuilder.DecodeMetadata(request.Headers.Metadata);
             await _methodHandlers[request.MethodFullName](this).ConfigureAwait(false);
         }
 

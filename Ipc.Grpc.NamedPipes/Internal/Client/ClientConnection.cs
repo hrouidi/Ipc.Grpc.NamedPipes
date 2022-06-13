@@ -167,11 +167,11 @@ namespace Ipc.Grpc.NamedPipes.Internal
                             Interlocked.Exchange(ref _isInServerSide, 0);
                             _pipeStream.Dispose();
 
-                            Response response = frame.Message.Response;
+                            Reply response = frame.Message.Response;
 
                             EnsureResponseHeadersSet();
-                            _status = new Status((StatusCode)response.Trailers.StatusCode, response.Trailers.StatusDetail);
-                            _responseTrailers = MessageBuilder.ToMetadata(response.Trailers.Metadata) ?? new Metadata();
+                            _status = new Status((StatusCode)response.StatusCode, response.StatusDetail);
+                            _responseTrailers = MessageBuilder.DecodeMetadata(response.Trailers) ?? new Metadata();
 
                             if (_status.StatusCode == StatusCode.OK)
                             {
@@ -184,7 +184,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                             return;
 
                         case Message.DataOneofCase.ResponseHeaders:
-                            var headerMetadata = MessageBuilder.ToMetadata(frame.Message.ResponseHeaders.Metadata);
+                            var headerMetadata = MessageBuilder.DecodeMetadata(frame.Message.ResponseHeaders.Metadata);
                             EnsureResponseHeadersSet(headerMetadata);
                             break;
                         case Message.DataOneofCase.RequestControl:

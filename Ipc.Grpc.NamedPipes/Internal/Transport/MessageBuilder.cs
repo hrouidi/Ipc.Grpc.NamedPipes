@@ -13,9 +13,9 @@ namespace Ipc.Grpc.NamedPipes.Internal
     {
         #region Client messages
 
-        //TODO : cache bytes of these messages
-        public static Message CancelRequest => new() { RequestControl = Control.Cancel };
-        public static Message StreamEnd => new() { RequestControl = Control.StreamMessageEnd };
+        public static Message CancelRequest { get; } = new() { RequestControl = Control.Cancel };
+
+        public static Message StreamEnd { get; } = new() { RequestControl = Control.StreamMessageEnd };
 
         public static Message BuildRequest<TRequest, TResponse>(Method<TRequest, TResponse> method, DateTime? deadline, Metadata headers)
         {
@@ -32,49 +32,39 @@ namespace Ipc.Grpc.NamedPipes.Internal
             return message;
         }
 
-        public static (Message message, byte[] payload) BuildStreamPayload<TRequest>(Marshaller<TRequest> marshaller, TRequest message)
-        {
-            byte[] payload = SerializationHelpers.Serialize(marshaller, message);
-            Message ret = new()
-            {
-                RequestControl = Control.StreamMessage
-            };
-            return (ret, payload);
-        }
-
         #endregion
 
-        public static Message BuildResponseHeadersMessage(Metadata responseHeaders)
+        public static Message Streaming { get; } = new() { RequestControl = Control.StreamMessage };
+
+        #region Server messages
+
+        public static Message BuildResponseHeaders(Metadata responseHeaders)
         {
             Headers headers = ToHeaders(responseHeaders);
             return new Message { ResponseHeaders = headers };
         }
 
-        public static Trailers BuildTrailers(Metadata contextTrailers, StatusCode statusCode, string statusDetail)
+        public static Message BuildReply(Metadata trailers, StatusCode statusCode, string statusDetail)
         {
-            Trailers ret = ToTrailers(contextTrailers);
+            Reply ret = new();
+            EncodeMetadata(trailers, ret.Trailers);
             ret.StatusCode = (int)statusCode;
             ret.StatusDetail = statusDetail;
-            return ret;
+
+            Message message = new() { Response = ret };
+            return message;
         }
+
+        #endregion
 
         private static Headers ToHeaders(Metadata metadata)
         {
             var headers = new Headers();
-            AddMetadata(metadata, headers.Metadata);
+            EncodeMetadata(metadata, headers.Metadata);
             return headers;
-
         }
 
-        private static Trailers ToTrailers(Metadata metadata)
-        {
-            var ret = new Trailers();
-            AddMetadata(metadata, ret.Metadata);
-            return ret;
-
-        }
-
-        private static void AddMetadata(Metadata metadata, ICollection<MetadataEntry> accumulator)
+        private static void EncodeMetadata(Metadata metadata, ICollection<MetadataEntry> accumulator)
         {
             foreach (Metadata.Entry entry in metadata ?? new Metadata())
             {
@@ -89,7 +79,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         }
 
-        public static Metadata ToMetadata(RepeatedField<MetadataEntry> entries)
+        public static Metadata DecodeMetadata(RepeatedField<MetadataEntry> entries)
         {
             var metadata = new Metadata();
             foreach (MetadataEntry entry in entries)

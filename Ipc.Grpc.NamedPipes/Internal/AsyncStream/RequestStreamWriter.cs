@@ -30,7 +30,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         public Task CompleteAsync()
         {
             _isCompleted = true;
-            Message message = new() { RequestControl = Control.StreamMessageEnd }; //TODO: cache this type of message
+            Message message = MessageBuilder.StreamEnd; //TODO: cache this type of message
             return _transport.SendFrame(message, _connectionCancellationToken).AsTask();
         }
 
@@ -44,8 +44,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             if (exception != null)
                 throw exception;
 
-            Message message = new() { RequestControl = Control.StreamMessage }; //TODO: cache this type of message
-            FrameInfo<TRequest> frameInfo = new(message, payload, _payloadSerializer);
+            FrameInfo <TRequest> frameInfo = new(MessageBuilder.Streaming, payload, _payloadSerializer);
             await _transport.SendFrame(frameInfo, _connectionCancellationToken);
         }
     }

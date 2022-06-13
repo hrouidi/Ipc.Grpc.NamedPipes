@@ -32,9 +32,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             if (_cancellationToken.IsCancellationRequested)
                 return Task.FromCanceled(_cancellationToken);
 
-            Message message = new() { RequestControl = Control.StreamMessage }; //TODO: cache this type of message
-
-            FrameInfo<TResponse> frameInfo = new(message, response, _payloadSerializer);
+            FrameInfo<TResponse> frameInfo = new(MessageBuilder.Streaming, response, _payloadSerializer);
             return _transport.SendFrame(frameInfo, _cancellationToken).AsTask();
         }
     }

@@ -9,7 +9,7 @@ package Ipc.Grpc.NamedPipes.TransportProtocol;
 message Message {
     oneof data {
         Request request = 1;
-        Response response = 2;
+        Reply response = 2;
         Control requestControl = 3;
         Headers responseHeaders = 4;
     }
@@ -30,10 +30,6 @@ message Request {
 	}
 }
 
-message Response {
-	Trailers trailers = 1;
-}
-
 enum Control {
     none = 0;
     cancel = 1;
@@ -45,8 +41,8 @@ message Headers {
     repeated MetadataEntry metadata = 1;
 }
 
-message Trailers {
-	repeated MetadataEntry metadata = 1;
+message Reply {
+	repeated MetadataEntry trailers = 1;
 	int32 status_code = 2;
 	string status_detail = 3;
 }
