@@ -125,18 +125,18 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
         }
 
-        private async Task HandleConnectionAsync(NamedPipeServerStream pipeServer)
+        private async Task HandleConnectionAsync(NamedPipeServerStream pipeServer)//should never throw
         {
             await Task.Yield();
             try
             {
                 using var connection = new ServerConnection(pipeServer, _methodHandlers, _shutdownCancellationTokenSource.Token);
                 await connection.ListenMessagesAsync().ConfigureAwait(false);
+                await connection.RequestHandlerTask!.ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                pipeServer.Dispose();
-                if (ex is not OperationCanceledException)
+               if (ex is not OperationCanceledException)
                     Console.WriteLine($"{nameof(ServerListener)} Error while ListenMessagesAsync: {ex.Message}");
             }
         }

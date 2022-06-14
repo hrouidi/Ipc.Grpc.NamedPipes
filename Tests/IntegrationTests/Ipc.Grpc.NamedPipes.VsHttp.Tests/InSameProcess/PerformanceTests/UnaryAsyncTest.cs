@@ -12,7 +12,6 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
 {
     public class UnaryAsyncTest
     {
-
         [Test]
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task Channels_Sequential_Performance(ChannelContextFactory factory)
@@ -20,7 +19,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
             using var ctx = factory.Create();
             List<ResponseMessage> rets = new List<ResponseMessage>(1_000);
             var stopwatch = Stopwatch.StartNew();
-            for (int i = 0; i < 1_000; i++)
+            for (int i = 0; i < 10_000; i++)
             {
                 var client = factory.CreateClient();
                 ResponseMessage ret = await client.SimpleUnaryAsync(new RequestMessage());

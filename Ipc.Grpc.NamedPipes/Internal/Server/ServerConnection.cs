@@ -25,7 +25,13 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly CancellationTokenSource _combinedCts;
 
         private Message? _unaryRequestMessage;
-        private bool _isCompleted;//TODO : make this thread safe
+        
+        private long _isCompleted; //1 :true | 0 : false
+        private bool IsCompleted
+        {
+            get => Interlocked.Read(ref _isCompleted) == 1;
+            set => Interlocked.Exchange(ref _isCompleted, value ? 1 : 0);
+        }
 
         public CancellationToken CallContextCancellationToken => _callContextCts.Token;
 
@@ -53,29 +59,29 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public void Dispose()
         {
+            //TODO: recycle this instance in PipePool instead of disposing it
+            _pipeStream.Dispose();
             _transport.Dispose();
             _combinedCts.Dispose();
         }
 
-        public async Task ListenMessagesAsync()
+        public Task? RequestHandlerTask { get; private set; }
+
+        public async ValueTask ListenMessagesAsync()
         {
-            while (_isCompleted == false && _combinedCts.IsCancellationRequested == false && _pipeStream.IsConnected)
+            while (IsCompleted == false && _combinedCts.IsCancellationRequested == false && _pipeStream.IsConnected)
             {
                 Message message = await _transport.ReadFrame(_combinedCts.Token).ConfigureAwait(false);
 
-                if (message == Message.Eof) //gracefully end the task
+                if (ReferenceEquals(message, Message.Eof)) //gracefully end the task
                 {
-                    //Debug.Assert(IsCompleted, "invalid end");
-                    //Debug.Assert(_pipeStream.IsMessageComplete, "Message is not complete");
-                    //TODO: recycle this instance in PipePool instead of disposing it
-                    _pipeStream.Dispose();
-                    return;
+                    break;
                 }
 
                 switch (message.DataCase)
                 {
                     case Message.DataOneofCase.Request:
-                        _ = HandleRequestAsync(message);
+                        RequestHandlerTask = HandleRequestAsync(message);
                         break;
                     case Message.DataOneofCase.Cancel:
                         HandleRemoteCancel();
@@ -96,12 +102,25 @@ namespace Ipc.Grpc.NamedPipes.Internal
                         break;
                 }
             }
+            //Early end 
+            RequestHandlerTask ??= Task.CompletedTask;
         }
 
-        public ValueTask SendResponseHeaders(Metadata responseHeaders)
+        public async ValueTask SendResponseHeaders(Metadata responseHeaders)
         {
             Message message = MessageBuilder.BuildResponseHeaders(responseHeaders);
-            return Send(message);
+            try
+            {
+                await _transport.SendFrame(message, _combinedCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine($"{nameof(ServerConnection)}: Send Response headers cancelled by the remote client");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{nameof(ServerConnection)}: Send Response headers failed:{ex.Message}");
+            }
         }
 
         public TRequest GetUnaryRequest<TRequest>(Marshaller<TRequest> requestMarshaller)
@@ -122,13 +141,13 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public IServerStreamWriter<TResponse> GetResponseStreamWriter<TResponse>(Marshaller<TResponse> responseMarshaller) where TResponse : class
         {
-            return new ResponseStreamWriter<TResponse>(_transport, _combinedCts.Token, responseMarshaller.ContextualSerializer, () => _isCompleted);
+            return new ResponseStreamWriter<TResponse>(_transport, _combinedCts.Token, responseMarshaller.ContextualSerializer, () => IsCompleted);
         }
 
         //Should never throw exception
         public async ValueTask Success<TResponse>(Marshaller<TResponse>? marshaller = null, TResponse? response = null) where TResponse : class
         {
-            _isCompleted = true;
+            IsCompleted = true;
             (StatusCode status, string detail) = CallContext.Status.StatusCode switch
             {
                 StatusCode.OK => (StatusCode.OK, string.Empty),
@@ -138,14 +157,14 @@ namespace Ipc.Grpc.NamedPipes.Internal
             if (response != null && marshaller != null)
             {
                 MessageInfo<TResponse> messageInfo = new(message, response, marshaller.ContextualSerializer);
-                await Send(messageInfo).ConfigureAwait(false);
+                await SendReplyStatus(messageInfo).ConfigureAwait(false);//not cancellable send
             }
-            await Send(message).ConfigureAwait(false);
+            await SendReplyStatus(message).ConfigureAwait(false);//not cancellable send
         }
 
         public async ValueTask Error(Exception ex)//Should never throw
         {
-            _isCompleted = true;
+            IsCompleted = true;
 
             if (_serverShutdownToken.IsCancellationRequested) // don't notify remote client
             {
@@ -160,7 +179,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 (StatusCode status, string detail) = GetStatus();
 
                 Message message = MessageBuilder.BuildReply(CallContext.ResponseTrailers, status, detail);
-                await Send(message).ConfigureAwait(false);
+                await SendReplyStatus(message).ConfigureAwait(false); //not cancellable send
             }
 
             (StatusCode status, string detail) GetStatus()
@@ -178,12 +197,12 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
         }
 
-        //Cancellable send
-        private async ValueTask Send(Message message)
+        //Not Cancellable send
+        private async ValueTask SendReplyStatus(Message message)
         {
             try
             {
-                await _transport.SendFrame(message, _remoteClientCts.Token).ConfigureAwait(false);
+                await _transport.SendFrame(message).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -191,30 +210,31 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"{nameof(ServerConnection)}:[Error] Send {message.DataCase} failed :{ex.Message}");
+                LogError(message, ex);
             }
         }
-        //Cancellable send
-        private async ValueTask Send<TResponse>(MessageInfo<TResponse> info) where TResponse : class
+        //Not Cancellable send
+        private async ValueTask SendReplyStatus<TResponse>(MessageInfo<TResponse> info) where TResponse : class
         {
             try
             {
-                await _transport.SendFrame(info, _remoteClientCts.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                Console.WriteLine($"{nameof(ServerConnection)}: Send {info.Message.DataCase} cancelled by the remote client");
+                await _transport.SendFrame(info).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"{nameof(ServerConnection)}:[Error] Send {info.Message.DataCase} failed :{ex.Message}");
+                LogError(info.Message, ex);
             }
+        }
+
+        private static void LogError(Message message, Exception? error)
+        {
+            Console.WriteLine($"{nameof(ServerConnection)}:[Error] Send Status reply failed : [StatusCode: {message.Response.StatusCode}] [Status detail: {message.Response.StatusDetail}] [Error: {error?.Message}]");
         }
 
 
         #region Message handlers
 
-        private async ValueTask HandleRequestAsync(Message message)//Should never throw
+        private async Task HandleRequestAsync(Message message)//Should never throw
         {
             await Task.Yield();
             if (message.Request.MethodType is Request.Types.MethodType.Unary or Request.Types.MethodType.ServerStreaming)
