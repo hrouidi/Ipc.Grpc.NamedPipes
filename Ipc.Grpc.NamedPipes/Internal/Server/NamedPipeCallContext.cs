@@ -12,7 +12,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         internal NamedPipeCallContext(ServerConnection connection) => _connection = connection;
 
-        protected override CancellationToken CancellationTokenCore => _connection.CancellationTokenSource.Token;
+        protected override CancellationToken CancellationTokenCore => _connection.CallContextCancellationToken;
 
         protected override async Task WriteResponseHeadersAsyncCore(Metadata responseHeaders)
         {

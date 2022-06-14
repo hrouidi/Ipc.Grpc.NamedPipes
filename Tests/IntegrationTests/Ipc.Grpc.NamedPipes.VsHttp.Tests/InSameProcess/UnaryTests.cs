@@ -207,7 +207,6 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
         }
 
-
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
         public Task DisposeBeforeAwaiting_ShouldThrowCanceledRpcException_Test(ChannelContextFactory factory)
@@ -233,17 +232,15 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(NamedPipeChannelSource))]
-        public async Task DisposeWhileAwaiting_ShouldSendCancelRemoteAndThrowCanceledRpcException_Test(ChannelContextFactory factory)
+        public void DisposeWhileAwaiting_ShouldSendCancelRemoteAndThrowCanceledRpcException_Test(ChannelContextFactory factory)
         {
-            Assert.Fail("Fix conditions: wait for the first response streaming item and then dispose the call :)");
             using ChannelContext ctx = factory.Create();
-            var call = ctx.Client.DelayedUnaryAsync(new RequestMessage { Value = 10 }); //wait for 100 ms
-            Task.Delay(100000).Wait();
+            var call = ctx.Client.DelayedUnaryAsync(new RequestMessage { Value = 100 }); //wait for 100 ms
 
-            //Task task = Task.WhenAll(call.ResponseAsync, DisposeAfter(call, 900));
+            Task task = Task.WhenAll(call.ResponseAsync, DisposeAfter(call, 50));
 
-            //var exception = Assert.ThrowsAsync<RpcException>(async () => await task);
-            //Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await task);
+            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
 
             static async Task DisposeAfter(IDisposable call, int ms)
             {
@@ -251,7 +248,6 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
                 call.Dispose();
             }
         }
-
 
         #endregion
 
@@ -384,15 +380,15 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
 
 #if NET_5_0 || NETFRAMEWORK
         [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(GrpcDotNetNamedPipesChannelSource))]
-        public void SimpleUnaryWithACLs(GrpcDotNetNamedPipesChannelFactory factory)
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public void SimpleUnaryWithACLs(NamedPipeChannelContextFactory factory)
         {
             var security = new PipeSecurity();
             var sid = new SecurityIdentifier(WellKnownSidType.WorldSid, null);
             security.AddAccessRule(new PipeAccessRule(sid, PipeAccessRights.ReadWrite, AccessControlType.Allow));
-            security.AddAccessRule(new PipeAccessRule(WindowsIdentity.GetCurrent().User, PipeAccessRights.FullControl, AccessControlType.Allow));
+            security.AddAccessRule(new PipeAccessRule(WindowsIdentity.GetCurrent().User!, PipeAccessRights.FullControl, AccessControlType.Allow));
 
-            var options = new GrpcDotNetNamedPipes.NamedPipeServerOptions { PipeSecurity = security };
+            var options = new NamedPipeServerOptions { PipeSecurity = security };
 
             using ChannelContext ctx = factory.Create(options);
             ResponseMessage response = ctx.Client.SimpleUnary(new RequestMessage { Value = 10 });
@@ -401,15 +397,15 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
         }
 
         [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(GrpcDotNetNamedPipesChannelSource))]
-        public void SimpleUnaryWithACLsDenied(GrpcDotNetNamedPipesChannelFactory factory)
+        [TestCaseSource(typeof(MultiChannelSource))]
+        public void SimpleUnaryWithACLsDenied(NamedPipeChannelContextFactory factory)
         {
             var security = new PipeSecurity();
             var sid = new SecurityIdentifier(WellKnownSidType.WorldSid, null);
             security.AddAccessRule(new PipeAccessRule(sid, PipeAccessRights.ReadWrite, AccessControlType.Allow));
-            security.AddAccessRule(new PipeAccessRule(WindowsIdentity.GetCurrent().User, PipeAccessRights.ReadWrite, AccessControlType.Deny));
+            security.AddAccessRule(new PipeAccessRule(WindowsIdentity.GetCurrent().User!, PipeAccessRights.ReadWrite, AccessControlType.Deny));
 
-            var options = new GrpcDotNetNamedPipes.NamedPipeServerOptions { PipeSecurity = security };
+            var options = new NamedPipeServerOptions { PipeSecurity = security };
 
             using ChannelContext ctx = factory.Create(options);
             var exception = Assert.Throws<UnauthorizedAccessException>(() => ctx.Client.SimpleUnary(new RequestMessage { Value = 10 }));

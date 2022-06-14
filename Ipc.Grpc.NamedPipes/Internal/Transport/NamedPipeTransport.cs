@@ -15,7 +15,8 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
 {
     internal class NamedPipeTransport : IDisposable
     {
-        private readonly byte[] _frameHeaderBytes;
+        private readonly IMemoryOwner<byte> _frameHeaderOwner;
+        private readonly Memory<byte> _frameHeaderBytes;
         private readonly PipeStream _pipeStream;
 
         private readonly string _remote;//Debug only
@@ -24,26 +25,27 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
         {
             _pipeStream = pipeStream;
             _remote = pipeStream is NamedPipeClientStream ? "Server" : "Client";
-            _frameHeaderBytes = ArrayPool<byte>.Shared.Rent(FrameHeader.Size);
+            _frameHeaderOwner = MemoryPool<byte>.Shared.Rent(FrameHeader.Size);
+            _frameHeaderBytes = _frameHeaderOwner.Memory.Slice(0, FrameHeader.Size);
         }
 
         public async ValueTask<Message> ReadFrame(CancellationToken token = default)
         {
-            int readBytes = await _pipeStream.ReadAsync(_frameHeaderBytes, 0, FrameHeader.Size, token)
+            int readBytes = await _pipeStream.ReadAsync(_frameHeaderBytes, token)
                                              .ConfigureAwait(false);
             if (readBytes == 0)
                 return Message.Eof;
 
-            FrameHeader header = FrameHeader.FromSpan(_frameHeaderBytes.AsSpan().Slice(0, FrameHeader.Size));
+            FrameHeader header = FrameHeader.FromSpan(_frameHeaderBytes.Span);
 
-            //int framePlusPayloadSize = header.PayloadSize + header.MessageSize;
             IMemoryOwner<byte> owner = MemoryPool<byte>.Shared.Rent(header.TotalSize);
             Memory<byte> framePlusPayloadBytes = owner.Memory.Slice(0, header.TotalSize);
 
             readBytes = await _pipeStream.ReadAsync(framePlusPayloadBytes, token)
                                          .ConfigureAwait(false);
-            //if (readBytes == 0)
-            //    return Message.Eof;
+            if (readBytes == 0)
+                return Message.Eof;
+
             if (readBytes != header.TotalSize)
             {
                 Debug.Assert(readBytes == header.TotalSize, $"{_remote}  is laying: read bytes count:{readBytes}/{header.TotalSize}: buffer= {framePlusPayloadBytes.ToArray().Select(x => x.ToString()).Aggregate("", (x, y) => $"{x}|{y}")}");
@@ -84,12 +86,12 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
             Memory<byte> messageBytes = frameBytes.Slice(FrameHeader.Size);
             message.WriteTo(messageBytes.Span);
 
-            await _pipeStream.WriteAsync(frameBytes, token).ConfigureAwait(false); ;
+            await _pipeStream.WriteAsync(frameBytes, token).ConfigureAwait(false);
         }
 
         public void Dispose()
         {
-            ArrayPool<byte>.Shared.Return(_frameHeaderBytes);
+            _frameHeaderOwner.Dispose();
         }
 
         [StructLayout(LayoutKind.Sequential, Size = Size)]

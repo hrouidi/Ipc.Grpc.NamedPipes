@@ -28,11 +28,11 @@ namespace Ipc.Grpc.NamedPipes.Internal
         public WriteOptions WriteOptions { get; set; }
 
 
-        public Task CompleteAsync()
+        public async Task CompleteAsync()
         {
             _isCompleted = true;
             Message message = MessageBuilder.StreamEnd; //TODO: cache this type of message
-            return _transport.SendFrame(message, _connectionCancellationToken).AsTask();
+            await  _transport.SendFrame(message, _connectionCancellationToken).ConfigureAwait(false);
         }
 
         public async Task WriteAsync(TRequest payload)
@@ -46,7 +46,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 throw exception;
 
             MessageInfo <TRequest> messageInfo = new(MessageBuilder.Streaming, payload, _payloadSerializer);
-            await _transport.SendFrame(messageInfo, _connectionCancellationToken);
+            await _transport.SendFrame(messageInfo, _connectionCancellationToken).ConfigureAwait(false);
         }
     }
 }

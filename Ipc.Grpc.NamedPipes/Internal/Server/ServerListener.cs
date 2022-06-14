@@ -130,13 +130,14 @@ namespace Ipc.Grpc.NamedPipes.Internal
             await Task.Yield();
             try
             {
-                using var connection = new ServerConnection(pipeServer, _methodHandlers);
-                await connection.ListenMessagesAsync(_shutdownCancellationTokenSource.Token).ConfigureAwait(false);
+                using var connection = new ServerConnection(pipeServer, _methodHandlers, _shutdownCancellationTokenSource.Token);
+                await connection.ListenMessagesAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 pipeServer.Dispose();
-                Console.WriteLine($"{nameof(ServerListener)} Error while ListenMessagesAsync: {ex.Message}");
+                if (ex is not OperationCanceledException)
+                    Console.WriteLine($"{nameof(ServerListener)} Error while ListenMessagesAsync: {ex.Message}");
             }
         }
 

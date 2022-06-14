@@ -37,9 +37,9 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             var call = ctx.Client.ServerStreaming(new RequestMessage { Value = 1 });
             Assert.True(await call.ResponseStream.MoveNext());
             Assert.False(await call.ResponseStream.MoveNext());
-            void WriteAction() => ctx.Impl.ServerStream.WriteAsync(new ResponseMessage { Value = 1 });
-            var exception = Assert.Throws<InvalidOperationException>(WriteAction);
-            Assert.That(exception.Message, Is.EqualTo("Response stream has already been completed."));
+            //void WriteAction() => ;
+            var exception = Assert.ThrowsAsync<InvalidOperationException>(async()=>await ctx.Impl.ServerStream.WriteAsync(new ResponseMessage { Value = 1 }));
+            Assert.That(exception!.Message, Is.EqualTo("Response stream has already been completed."));
         }
 
         [Test, Timeout(TestTimeout)]
@@ -50,9 +50,8 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             var call = ctx.Client.ThrowingServerStreaming(new RequestMessage { Value = 1 });
             Assert.True(await call.ResponseStream.MoveNext());
             Assert.ThrowsAsync<RpcException>(async () => await call.ResponseStream.MoveNext());
-            void WriteAction() => ctx.Impl.ServerStream.WriteAsync(new ResponseMessage { Value = 1 });
-            var exception = Assert.Throws<InvalidOperationException>(WriteAction);
-            Assert.That(exception.Message, Is.EqualTo("Response stream has already been completed."));
+            var exception = Assert.ThrowsAsync<InvalidOperationException>(async()=>await ctx.Impl.ServerStream.WriteAsync(new ResponseMessage { Value = 1 }));
+            Assert.That(exception!.Message, Is.EqualTo("Response stream has already been completed."));
         }
 
         //[Test, Timeout(TestTimeout)]
@@ -92,8 +91,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             using var ctx = factory.Create();
             var cts = new CancellationTokenSource();
             cts.Cancel();
-            var call = ctx.Client.DelayedServerStreaming(new RequestMessage { Value = 3 },
-                cancellationToken: cts.Token);
+            var call = ctx.Client.DelayedServerStreaming(new RequestMessage { Value = 3 }, cancellationToken: cts.Token);
             var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseStream.MoveNext());
             Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Cancelled));
             return Task.CompletedTask;

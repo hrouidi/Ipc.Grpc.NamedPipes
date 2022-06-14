@@ -20,8 +20,8 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
 
             public ItemInfo(Exception error) => Error = error;
 
-            public Message Item { get; set; }
-            public Exception Error { get; set; }
+            public Message Item { get; }
+            public Exception Error { get; }
             public bool IsCompleted { get; private set; }
         }
 
@@ -31,8 +31,8 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
         public MessageChannel(CancellationToken connectionCancellationToken)
         {
             _connectionCancellationToken = connectionCancellationToken;
-            _channel = Channel.CreateUnbounded<ItemInfo>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
-            //_channel = Channel.CreateUnbounded<ItemInfo>();
+            //_channel = Channel.CreateUnbounded<ItemInfo>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+            _channel = Channel.CreateUnbounded<ItemInfo>();
         }
 
         public void Append(Message message)
@@ -66,9 +66,9 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
             return payload;
         }
 
-        public IAsyncStreamReader<TPayload> GetAsyncStreamReader<TPayload>(Deadline deadline, Func<DeserializationContext, TPayload> deserializer)
+        public IAsyncStreamReader<TPayload> GetAsyncStreamReader<TPayload>( Func<DeserializationContext, TPayload> deserializer, Deadline deadline, CancellationToken connectionToken)
         {
-            return new AsyncStreamReaderImplementation<TPayload>(this, deadline, deserializer);
+            return new AsyncStreamReaderImplementation<TPayload>(this, deadline, deserializer, connectionToken);
         }
 
 
@@ -100,16 +100,20 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
             private readonly MessageChannel _messageChannel;
             private readonly Func<DeserializationContext, TPayload> _deserializer;
             private readonly Deadline _deadline;
-            internal AsyncStreamReaderImplementation(MessageChannel messageChannel, Deadline deadline, Func<DeserializationContext, TPayload> deserializer)
+            private readonly CancellationToken _connectionToken;
+
+            internal AsyncStreamReaderImplementation(MessageChannel messageChannel, Deadline deadline, Func<DeserializationContext, TPayload> deserializer, CancellationToken connectionToken)
             {
                 _messageChannel = messageChannel;
                 _deadline = deadline;
                 _deserializer = deserializer;
+                _connectionToken = connectionToken;
             }
 
             public async Task<bool> MoveNext(CancellationToken cancellationToken)
             {
-                ItemInfo ret = await _messageChannel.SafeReadAsync(_deadline, cancellationToken).ConfigureAwait(false);
+                using var combined = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _connectionToken);
+                ItemInfo ret = await _messageChannel.SafeReadAsync(_deadline, combined.Token).ConfigureAwait(false);
 
                 if (ret.Error != null)
                     throw MapException(ret.Error, _deadline);

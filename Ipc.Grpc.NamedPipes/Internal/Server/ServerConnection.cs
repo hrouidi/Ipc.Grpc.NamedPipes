@@ -15,13 +15,19 @@ namespace Ipc.Grpc.NamedPipes.Internal
     internal class ServerConnection : IDisposable
     {
         private readonly IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> _methodHandlers;
-        private readonly MessageChannel _messageChannel;
+        private readonly MessageChannel _requestStreamingChannel;
         private readonly NamedPipeServerStream _pipeStream;
         private readonly NamedPipeTransport _transport;
 
-        private Message? _unaryRequestMessage;
+        private readonly CancellationToken _serverShutdownToken;
+        private readonly CancellationTokenSource _callContextCts;
+        private readonly CancellationTokenSource _remoteClientCts;
+        private readonly CancellationTokenSource _combinedCts;
 
-        public CancellationTokenSource CancellationTokenSource { get; }
+        private Message? _unaryRequestMessage;
+        private bool _isCompleted;//TODO : make this thread safe
+
+        public CancellationToken CallContextCancellationToken => _callContextCts.Token;
 
         public Deadline Deadline { get; private set; }
 
@@ -29,29 +35,33 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public ServerCallContext CallContext { get; }
 
-        public bool IsCompleted { get; private set; }
 
-        public ServerConnection(NamedPipeServerStream pipeStream, IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> methodHandlers)
+        public ServerConnection(NamedPipeServerStream pipeStream, IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> methodHandlers, CancellationToken serverShutdownToken)
         {
-            CallContext = new NamedPipeCallContext(this);
             _pipeStream = pipeStream;
-            _transport = new NamedPipeTransport(pipeStream);
             _methodHandlers = methodHandlers;
-            CancellationTokenSource = new CancellationTokenSource();
+            _serverShutdownToken = serverShutdownToken;
+
             Deadline = Deadline.None;
-            _messageChannel = new MessageChannel(CancellationTokenSource.Token);
+            CallContext = new NamedPipeCallContext(this);
+            _transport = new NamedPipeTransport(pipeStream);
+            _callContextCts = new CancellationTokenSource();
+            _remoteClientCts = new CancellationTokenSource();
+            _combinedCts = CancellationTokenSource.CreateLinkedTokenSource(_serverShutdownToken, _callContextCts.Token, _remoteClientCts.Token);
+            _requestStreamingChannel = new MessageChannel(_combinedCts.Token);
         }
 
         public void Dispose()
         {
             _transport.Dispose();
+            _combinedCts.Dispose();
         }
 
-        public async Task ListenMessagesAsync(CancellationToken shutdownToken)
+        public async Task ListenMessagesAsync()
         {
-            while (IsCompleted == false && shutdownToken.IsCancellationRequested == false && _pipeStream.IsConnected)
+            while (_isCompleted == false && _combinedCts.IsCancellationRequested == false && _pipeStream.IsConnected)
             {
-                Message message = await _transport.ReadFrame(shutdownToken).ConfigureAwait(false);
+                Message message = await _transport.ReadFrame(_combinedCts.Token).ConfigureAwait(false);
 
                 if (message == Message.Eof) //gracefully end the task
                 {
@@ -68,22 +78,22 @@ namespace Ipc.Grpc.NamedPipes.Internal
                         _ = HandleRequestAsync(message);
                         break;
                     case Message.DataOneofCase.Cancel:
-                        HandleCancel();
+                        HandleRemoteCancel();
                         message.Dispose();
                         break;
                     case Message.DataOneofCase.Streaming:
-                        _messageChannel.Append(message);
+                        _requestStreamingChannel.Append(message);
                         break;
                     case Message.DataOneofCase.StreamingEnd:
-                        _messageChannel.SetCompleted();
+                        _requestStreamingChannel.SetCompleted();
                         message.Dispose();
                         break;
                     case Message.DataOneofCase.ResponseHeaders:
                     case Message.DataOneofCase.None:
                     case Message.DataOneofCase.Response:
-                    default:
+                    default://Ignore others messages
                         message.Dispose();
-                        throw new ArgumentOutOfRangeException("vilaine erreur");
+                        break;
                 }
             }
         }
@@ -91,7 +101,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         public ValueTask SendResponseHeaders(Metadata responseHeaders)
         {
             Message message = MessageBuilder.BuildResponseHeaders(responseHeaders);
-            return _transport.SendFrame(message, CancellationTokenSource.Token);
+            return Send(message);
         }
 
         public TRequest GetUnaryRequest<TRequest>(Marshaller<TRequest> requestMarshaller)
@@ -107,52 +117,97 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public IAsyncStreamReader<TRequest> GetRequestStreamReader<TRequest>(Marshaller<TRequest> requestMarshaller)
         {
-            return _messageChannel.GetAsyncStreamReader(Deadline, requestMarshaller.ContextualDeserializer);
+            return _requestStreamingChannel.GetAsyncStreamReader(requestMarshaller.ContextualDeserializer, Deadline, _combinedCts.Token);
         }
 
         public IServerStreamWriter<TResponse> GetResponseStreamWriter<TResponse>(Marshaller<TResponse> responseMarshaller) where TResponse : class
         {
-            return new ResponseStreamWriter<TResponse>(_transport, CancellationTokenSource.Token, responseMarshaller.ContextualSerializer, () => IsCompleted);
+            return new ResponseStreamWriter<TResponse>(_transport, _combinedCts.Token, responseMarshaller.ContextualSerializer, () => _isCompleted);
         }
 
-        public ValueTask Success<TResponse>(Marshaller<TResponse>? marshaller = null, TResponse? response = null) where TResponse : class
+        //Should never throw exception
+        public async ValueTask Success<TResponse>(Marshaller<TResponse>? marshaller = null, TResponse? response = null) where TResponse : class
         {
-            IsCompleted = true;
+            _isCompleted = true;
             (StatusCode status, string detail) = CallContext.Status.StatusCode switch
             {
-                StatusCode.OK => (StatusCode.OK, ""),
+                StatusCode.OK => (StatusCode.OK, string.Empty),
                 _ => (CallContext.Status.StatusCode, CallContext.Status.Detail)
             };
-
             Message message = MessageBuilder.BuildReply(CallContext.ResponseTrailers, status, detail);
             if (response != null && marshaller != null)
             {
                 MessageInfo<TResponse> messageInfo = new(message, response, marshaller.ContextualSerializer);
-                return _transport.SendFrame(messageInfo, CallContext.CancellationToken);
+                await Send(messageInfo).ConfigureAwait(false);
             }
-            return _transport.SendFrame(message);
+            await Send(message).ConfigureAwait(false);
         }
 
-        public ValueTask Error(Exception ex)
+        public async ValueTask Error(Exception ex)//Should never throw
         {
-            IsCompleted = true;
-            (StatusCode status, string detail) = GetStatus();
+            _isCompleted = true;
 
-            Message message = MessageBuilder.BuildReply(CallContext.ResponseTrailers, status, detail);
-            return _transport.SendFrame(message, CallContext.CancellationToken);
+            if (_serverShutdownToken.IsCancellationRequested) // don't notify remote client
+            {
+                Console.WriteLine($"{nameof(ServerConnection)}: Current request cancelled, server shutdown:{ex.Message}");
+            }
+            else if (_remoteClientCts.IsCancellationRequested)// don't notify remote client
+            {
+                Console.WriteLine($"{nameof(ServerConnection)}: Current request cancelled by the remote client");
+            }
+            else
+            {
+                (StatusCode status, string detail) = GetStatus();
+
+                Message message = MessageBuilder.BuildReply(CallContext.ResponseTrailers, status, detail);
+                await Send(message).ConfigureAwait(false);
+            }
 
             (StatusCode status, string detail) GetStatus()
             {
                 if (Deadline is { IsExpired: true })
                     return (StatusCode.DeadlineExceeded, "");
 
-                if (CancellationTokenSource.IsCancellationRequested)
+                if (_callContextCts.IsCancellationRequested)
                     return (StatusCode.Cancelled, "");
 
                 if (ex is RpcException rpcException)
                     return (rpcException.StatusCode, rpcException.Status.Detail);
 
                 return (StatusCode.Unknown, $"Exception was thrown by handler: {ex.Message}");
+            }
+        }
+
+        //Cancellable send
+        private async ValueTask Send(Message message)
+        {
+            try
+            {
+                await _transport.SendFrame(message, _remoteClientCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine($"{nameof(ServerConnection)}: Send {message.DataCase} cancelled by the remote client");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{nameof(ServerConnection)}:[Error] Send {message.DataCase} failed :{ex.Message}");
+            }
+        }
+        //Cancellable send
+        private async ValueTask Send<TResponse>(MessageInfo<TResponse> info) where TResponse : class
+        {
+            try
+            {
+                await _transport.SendFrame(info, _remoteClientCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine($"{nameof(ServerConnection)}: Send {info.Message.DataCase} cancelled by the remote client");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{nameof(ServerConnection)}:[Error] Send {info.Message.DataCase} failed :{ex.Message}");
             }
         }
 
@@ -171,11 +226,10 @@ namespace Ipc.Grpc.NamedPipes.Internal
             await _methodHandlers[request.MethodFullName](this).ConfigureAwait(false);
         }
 
-        private void HandleCancel()
+        private void HandleRemoteCancel()
         {
-            Console.WriteLine($"{nameof(ServerConnection)} Debug: Cancel current operation requested");
-            CancellationTokenSource.Cancel();
-            Console.WriteLine($"{nameof(ServerConnection)} Debug: Current operation cancelled");
+            _remoteClientCts.Cancel();
+            Console.WriteLine($"{nameof(ServerConnection)}: Current operation cancelled by remote client");
         }
 
         #endregion

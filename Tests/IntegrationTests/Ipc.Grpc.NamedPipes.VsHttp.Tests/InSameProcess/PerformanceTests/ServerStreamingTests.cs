@@ -21,8 +21,10 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
             using ChannelContext ctx = factory.Create();
             var stopwatch = Stopwatch.StartNew();
             var call = ctx.Client.ServerStreaming(new RequestMessage { Value = 10_000 });
+            int cpt = 0;
             while (await call.ResponseStream.MoveNext())
             {
+                //Console.WriteLine($"sssssssssssssss {++cpt}");
             }
 
             stopwatch.Stop();

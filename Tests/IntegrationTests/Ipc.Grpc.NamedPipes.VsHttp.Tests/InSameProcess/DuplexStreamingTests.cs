@@ -76,14 +76,13 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
         [TestCaseSource(typeof(MultiChannelSource))]
         public Task CancelDuplexStreamingBeforeCall(ChannelContextFactory factory)
         {
-            using var ctx = factory.Create();
+            using ChannelContext ctx = factory.Create();
             var cts = new CancellationTokenSource();
             cts.Cancel();
             var call = ctx.Client.DelayedDuplexStreaming(cancellationToken: cts.Token);
-            Assert.ThrowsAsync<TaskCanceledException>(async () =>
-                await call.RequestStream.WriteAsync(new RequestMessage { Value = 1 }));
+            Assert.ThrowsAsync<TaskCanceledException>(async () => await call.RequestStream.WriteAsync(new RequestMessage { Value = 1 }));
             var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseStream.MoveNext());
-            Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Cancelled));
+            Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
             return Task.CompletedTask;
         }
 

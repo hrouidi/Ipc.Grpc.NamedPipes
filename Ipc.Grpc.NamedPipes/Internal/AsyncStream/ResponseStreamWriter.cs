@@ -24,16 +24,13 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public WriteOptions WriteOptions { get; set; }
 
-        public Task WriteAsync(TResponse response)
+        public async Task WriteAsync(TResponse response)
         {
             if (_isCompleted())
                 throw new InvalidOperationException("Response stream has already been completed.");
 
-            if (_cancellationToken.IsCancellationRequested)
-                return Task.FromCanceled(_cancellationToken);
-
             MessageInfo<TResponse> messageInfo = new(MessageBuilder.Streaming, response, _payloadSerializer);
-            return _transport.SendFrame(messageInfo, _cancellationToken).AsTask();
+            await _transport.SendFrame(messageInfo, _cancellationToken).ConfigureAwait(false);
         }
     }
 }

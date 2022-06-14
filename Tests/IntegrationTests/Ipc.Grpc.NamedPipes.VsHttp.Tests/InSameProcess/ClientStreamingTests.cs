@@ -89,14 +89,15 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
-        public void DeadlineExpiredWhileStreaming(ChannelContextFactory factory)
+        public async Task DeadlineExpiredWhileStreaming(ChannelContextFactory factory)
         {
             using ChannelContext ctx = factory.Create();
-            DateTime deadline = DateTime.UtcNow - TimeSpan.FromMilliseconds(0.01);
+            DateTime deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(1);
 
             var call = ctx.Client.ClientStreaming(deadline: deadline);
-
-            Assert.ThrowsAsync<RpcException>(async () => await call.RequestStream.WriteAsync(new RequestMessage { Value = 3 }));
+            await Task.Delay(1);
+            
+            Assert.CatchAsync<Exception>(async () => await call.RequestStream.WriteAsync(new RequestMessage { Value = 3 }));
             var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseAsync);
             Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.DeadlineExceeded));
         }
