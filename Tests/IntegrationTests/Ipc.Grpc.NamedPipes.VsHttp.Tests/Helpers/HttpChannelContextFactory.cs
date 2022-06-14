@@ -7,9 +7,10 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers
 {
     public class HttpChannelContextFactory : ChannelContextFactory
     {
-        private static readonly ChannelOption[] Options = {
-            new ChannelOption(ChannelOptions.MaxReceiveMessageLength, 1024 * 1024 * 1024),
-            new ChannelOption(ChannelOptions.MaxSendMessageLength, 1024 * 1024 * 1024)
+        private static readonly ChannelOption[] Options =
+        {
+            new(ChannelOptions.MaxReceiveMessageLength, 1024 * 1024 * 1024),
+            new(ChannelOptions.MaxSendMessageLength, 1024 * 1024 * 1024)
         };
         private int _port;
 
@@ -18,8 +19,8 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers
             var impl = new TestServiceImplementation();
             var server = new Server(Options)
             {
-                Services = {TestService.BindService(impl)},
-                Ports = {new ServerPort("localhost", 0, ServerCredentials.Insecure)}
+                Services = { TestService.BindService(impl) },
+                Ports = { new ServerPort("localhost", 0, ServerCredentials.Insecure) }
             };
             server.Start();
             _port = server.Ports.First().BoundPort;

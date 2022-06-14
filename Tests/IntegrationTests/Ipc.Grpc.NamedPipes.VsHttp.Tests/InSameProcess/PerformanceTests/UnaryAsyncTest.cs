@@ -59,7 +59,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
         {
             using var ctx = factory.Create();
             var stopwatch = Stopwatch.StartNew();
-            var tasks = new Task[100];
+            var tasks = new Task[20];
             for (int i = 0; i < tasks.Length; i++)
             {
                 var client = factory.CreateClient();
@@ -77,7 +77,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
         {
             using var ctx = factory.Create();
             var stopwatch = Stopwatch.StartNew();
-            var tasks = new Task[100];
+            var tasks = new Task[20];
             for (int i = 0; i < tasks.Length; i++)
             {
                 tasks[i] = ctx.Client.SimpleUnaryAsync(new RequestMessage()).ResponseAsync;

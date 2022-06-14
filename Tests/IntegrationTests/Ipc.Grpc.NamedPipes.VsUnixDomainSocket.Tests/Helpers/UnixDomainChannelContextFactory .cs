@@ -43,7 +43,7 @@ namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.Helpers
                 ConnectCallback = connectionFactory.ConnectAsync
             };
 
-            var channel = GrpcChannel.ForAddress("http://localhost", new GrpcChannelOptions
+            GrpcChannel channel = GrpcChannel.ForAddress("http://localhost", new GrpcChannelOptions
             {
                 HttpHandler = socketsHttpHandler
             });
@@ -57,7 +57,7 @@ namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.Helpers
             // Add services to the container.
             builder.Services.AddGrpc();
             builder.WebHost
-                   .SuppressStatusMessages(true) 
+                   .SuppressStatusMessages(true)
                    .ConfigureLogging((context, logging) =>
                    {
                        // this removes the logging from all providers (mostly console)
@@ -77,7 +77,7 @@ namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.Helpers
 
             // Configure the HTTP request pipeline.
             app.MapGrpcService<TestServiceImplementation>();
-            app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909");
+            app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client.");
             return app;
         }
 

@@ -53,7 +53,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public void Dispose()
         {
-            _pipeStream?.Dispose();
+            //_pipeStream?.Dispose();
             _transport?.Dispose();
             _cancelRemoteRegistration.Dispose();
             _combinedCts.Dispose();
@@ -156,6 +156,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                     {
                         Interlocked.Exchange(ref _isInServerSide, 0);
                         _receptionChannel.SetError(new RpcException(new Status(StatusCode.DataLoss, "Server close current connection")));
+                        Dispose();
                         return;
                     }
                     switch (message.DataCase)
