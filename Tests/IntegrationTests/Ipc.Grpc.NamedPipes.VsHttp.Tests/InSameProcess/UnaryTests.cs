@@ -380,7 +380,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
 
 #if NET_5_0 || NETFRAMEWORK
         [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(MultiChannelSource))]
+        [TestCaseSource(typeof(NamedPipeChannelSource))]
         public void SimpleUnaryWithACLs(NamedPipeChannelContextFactory factory)
         {
             var security = new PipeSecurity();
@@ -397,7 +397,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
         }
 
         [Test, Timeout(TestTimeout)]
-        [TestCaseSource(typeof(MultiChannelSource))]
+        [TestCaseSource(typeof(NamedPipeChannelSource))]
         public void SimpleUnaryWithACLsDenied(NamedPipeChannelContextFactory factory)
         {
             var security = new PipeSecurity();

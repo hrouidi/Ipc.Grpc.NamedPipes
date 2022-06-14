@@ -92,7 +92,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
         public async Task DeadlineExpiredWhileStreaming(ChannelContextFactory factory)
         {
             using ChannelContext ctx = factory.Create();
-            DateTime deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(1);
+            DateTime deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(0.1);
 
             var call = ctx.Client.ClientStreaming(deadline: deadline);
             await Task.Delay(1);

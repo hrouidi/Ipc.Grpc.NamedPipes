@@ -1,7 +1,6 @@
 ﻿using System.Buffers;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Pipelines;
 using Grpc.Core;
 
 namespace Ipc.Grpc.NamedPipes.Internal
