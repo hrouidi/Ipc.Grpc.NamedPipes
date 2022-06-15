@@ -12,18 +12,20 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
 {
     public class UnaryAsyncTest
     {
+        public const int TestTimeout = 10 * 1000;
+
         [Test]
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task Channels_Sequential_Performance(ChannelContextFactory factory)
         {
             using var ctx = factory.Create();
-            List<ResponseMessage> rets = new List<ResponseMessage>(1_000);
+            List<ResponseMessage> responses = new List<ResponseMessage>(1_000);
             var stopwatch = Stopwatch.StartNew();
-            for (int i = 0; i < 10_000; i++)
+            for (int i = 0; i < responses.Capacity; i++)
             {
                 var client = factory.CreateClient();
                 ResponseMessage ret = await client.SimpleUnaryAsync(new RequestMessage());
-                rets.Add(ret);
+                responses.Add(ret);
             }
 
             stopwatch.Stop();
@@ -36,10 +38,10 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
         {
             using var ctx = factory.Create();
             //ByteString byteString = ByteString.CopyFrom(new byte[16*1024]);
-            List<ResponseMessage> responses = new(10_000);
+            List<ResponseMessage> responses = new(1_000);
             var stopwatch = Stopwatch.StartNew();
 
-            for (int i = 0; i < 10_000; i++)
+            for (int i = 0; i < responses.Capacity; i++)
             {
                 ResponseMessage rep = await ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 123 });
                 responses.Add(rep);
@@ -58,7 +60,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
         {
             using var ctx = factory.Create();
             var stopwatch = Stopwatch.StartNew();
-            var tasks = new Task[20];
+            var tasks = new Task[1_000];
             for (int i = 0; i < tasks.Length; i++)
             {
                 var client = factory.CreateClient();
@@ -76,7 +78,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
         {
             using var ctx = factory.Create();
             var stopwatch = Stopwatch.StartNew();
-            var tasks = new Task[20];
+            var tasks = new Task[1_000];
             for (int i = 0; i < tasks.Length; i++)
             {
                 tasks[i] = ctx.Client.SimpleUnaryAsync(new RequestMessage()).ResponseAsync;
@@ -104,8 +106,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
             Assert.That(ret.Binary, Is.EqualTo(byteString));
             Console.WriteLine($" Elapsed :{stopwatch.Elapsed}");
         }
-
-        public const int TestTimeout = 10 * 1000;
+        
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]

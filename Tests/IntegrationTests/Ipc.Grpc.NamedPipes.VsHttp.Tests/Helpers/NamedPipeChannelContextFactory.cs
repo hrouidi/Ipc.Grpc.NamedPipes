@@ -8,8 +8,8 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers
     {
         private readonly string _pipeName = $"Ipc.Grpc.NamedPipes/{Guid.NewGuid()}";
 
-        private const int _connectionTimeout = -1;
-        //private const int _connectionTimeout = 100;
+        //private const int _connectionTimeout = -1;
+        private const int _connectionTimeout = 100;
             
         public ChannelContext Create(NamedPipeServerOptions options)
         {

@@ -60,7 +60,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         public void Dispose()
         {
             //TODO: recycle this instance in PipePool instead of disposing it
-            _pipeStream.Dispose();
+           // _pipeStream.Dispose();
             _transport.Dispose();
             _combinedCts.Dispose();
         }
@@ -228,7 +228,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         private static void LogError(Message message, Exception? error)
         {
-            Console.WriteLine($"{nameof(ServerConnection)}:[Error] Send Status reply failed : [StatusCode: {message.Response.StatusCode}] [Status detail: {message.Response.StatusDetail}] [Error: {error?.Message}]");
+            Console.WriteLine($"{nameof(ServerConnection)}:[Error] Send Status failed : [Code: {message.Response.StatusCode}] [detail: {message.Response.StatusDetail}] [Error: {error?.Message}]");
         }
 
 

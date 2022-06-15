@@ -14,6 +14,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly NamedPipeServerOptions _options;
         private readonly List<Task> _listenerTasks;
 
+        private readonly PipePool _pipePool;
+
         private readonly IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> _methodHandlers;
 
         private volatile bool _started;
@@ -26,6 +28,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _methodHandlers = methodHandlers;
             _shutdownCancellationTokenSource = new CancellationTokenSource();
             _listenerTasks = new List<Task>();
+
+            _pipePool = new PipePool(CreatePipeServer);
         }
 
         public void Start(int poolSize = 1)
@@ -61,6 +65,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             _disposed = true;
             _shutdownCancellationTokenSource.Cancel();
+            _pipePool.Dispose();
         }
 
         private NamedPipeServerStream CreatePipeServer()
@@ -111,7 +116,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 try
                 {
                     //TODO :  Try recycle from PipePool
-                    pipeServer = CreatePipeServer();
+                    pipeServer = _pipePool.Get();
                     await pipeServer.WaitForConnectionAsync(_shutdownCancellationTokenSource.Token).ConfigureAwait(false);
                     _ = HandleConnectionAsync(pipeServer);
                 }
@@ -120,6 +125,8 @@ namespace Ipc.Grpc.NamedPipes.Internal
                     pipeServer?.Dispose();
                     if (_shutdownCancellationTokenSource.IsCancellationRequested)
                         break;
+
+                    _pipePool.AddNew();
                     Console.WriteLine($"{nameof(ServerListener)} Error while WaitForConnectionAsync: {ex.Message}");
                 }
             }
@@ -133,11 +140,12 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 using var connection = new ServerConnection(pipeServer, _methodHandlers, _shutdownCancellationTokenSource.Token);
                 await connection.ListenMessagesAsync().ConfigureAwait(false);
                 await connection.RequestHandlerTask!.ConfigureAwait(false);
+                _pipePool.Return(pipeServer);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-               if (ex is not OperationCanceledException)
-                    Console.WriteLine($"{nameof(ServerListener)} Error while ListenMessagesAsync: {ex.Message}");
+                _pipePool.AddNew();
+                Console.WriteLine($"{nameof(ServerListener)} Error while ListenMessagesAsync: {ex.Message}");
             }
         }
 
