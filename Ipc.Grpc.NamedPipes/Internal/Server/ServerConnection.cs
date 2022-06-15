@@ -59,8 +59,6 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public void Dispose()
         {
-            //TODO: recycle this instance in PipePool instead of disposing it
-           // _pipeStream.Dispose();
             _transport.Dispose();
             _combinedCts.Dispose();
         }

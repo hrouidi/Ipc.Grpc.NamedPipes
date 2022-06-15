@@ -39,10 +39,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             {
                 for (int i = 0; i < poolSize; i++)
                 {
-                    //var thread = new Thread(ListenConnectionsAsync);
-                    //thread.Start();
-
-                    Task task = Task.Factory.StartNew(async () => await ListenConnectionsAsync());
+                    Task task = Task.Factory.StartNew(async () => await ListenConnectionsAsync(), TaskCreationOptions.LongRunning);
                     _listenerTasks.Add(task);
                 }
                 Task.WaitAll(_listenerTasks.ToArray());
@@ -112,21 +109,21 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             while (true)
             {
+                //Console.WriteLine($"####  thread id: {Thread.CurrentThread.ManagedThreadId}");
                 NamedPipeServerStream? pipeServer = null;
                 try
                 {
-                    //TODO :  Try recycle from PipePool
                     pipeServer = _pipePool.Get();
                     await pipeServer.WaitForConnectionAsync(_shutdownCancellationTokenSource.Token).ConfigureAwait(false);
+                    //Console.WriteLine($"####  after connected thread id: {Thread.CurrentThread.ManagedThreadId}");
                     _ = HandleConnectionAsync(pipeServer);
                 }
                 catch (Exception ex)
                 {
-                    pipeServer?.Dispose();
                     if (_shutdownCancellationTokenSource.IsCancellationRequested)
                         break;
-
-                    _pipePool.AddNew();
+                    pipeServer?.Dispose();//dispose dirty/broken pipe
+                    _pipePool.AddNew();   //replace it by a new one in the pool
                     Console.WriteLine($"{nameof(ServerListener)} Error while WaitForConnectionAsync: {ex.Message}");
                 }
             }
@@ -135,9 +132,9 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private async Task HandleConnectionAsync(NamedPipeServerStream pipeServer)//should never throw
         {
             await Task.Yield();
+            ServerConnection connection = new(pipeServer, _methodHandlers, _shutdownCancellationTokenSource.Token);
             try
             {
-                using var connection = new ServerConnection(pipeServer, _methodHandlers, _shutdownCancellationTokenSource.Token);
                 await connection.ListenMessagesAsync().ConfigureAwait(false);
                 await connection.RequestHandlerTask!.ConfigureAwait(false);
                 _pipePool.Return(pipeServer);
@@ -146,6 +143,10 @@ namespace Ipc.Grpc.NamedPipes.Internal
             {
                 _pipePool.AddNew();
                 Console.WriteLine($"{nameof(ServerListener)} Error while ListenMessagesAsync: {ex.Message}");
+            }
+            finally
+            {
+                connection.Dispose();
             }
         }
 

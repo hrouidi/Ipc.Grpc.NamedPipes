@@ -37,8 +37,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
         public async Task Calls_Sequential_Performance(ChannelContextFactory factory)
         {
             using var ctx = factory.Create();
-            //ByteString byteString = ByteString.CopyFrom(new byte[16*1024]);
-            List<ResponseMessage> responses = new(1_000);
+            List<ResponseMessage> responses = new(10_000);
             var stopwatch = Stopwatch.StartNew();
 
             for (int i = 0; i < responses.Capacity; i++)

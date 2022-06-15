@@ -27,12 +27,14 @@ public sealed class PipeChannel : IDisposable
 
     public static NamedPipeClientStream CreateClientPipe(string name)
     {
-        return new NamedPipeClientStream(".",
+        var ret = new NamedPipeClientStream(".",
             name,
             PipeDirection.InOut,
             PipeOptions.Asynchronous,
             System.Security.Principal.TokenImpersonationLevel.None,
             HandleInheritability.None);
+        //ret.ReadMode = PipeTransmissionMode.Message;
+        return ret;
     }
 
     public static NamedPipeServerStream CreateServerPipe(string name)

@@ -19,12 +19,24 @@ public class PipePool : IDisposable
     public NamedPipeServerStream Get() => _pipes.TryTake(out NamedPipeServerStream item) ? item : _pipeFactory();
 
     public void Return(NamedPipeServerStream item) => _pipes.Add(item);
-    
+
     public void AddNew() => _pipes.Add(_pipeFactory());
-    
+
     public void Dispose()
     {
         foreach (NamedPipeServerStream pipe in _pipes)
+            SafeDispose(pipe);
+    }
+
+    private static void SafeDispose(NamedPipeServerStream pipe)
+    {
+        try
+        {
             pipe.Dispose();
+        }
+        catch
+        {
+
+        }
     }
 }

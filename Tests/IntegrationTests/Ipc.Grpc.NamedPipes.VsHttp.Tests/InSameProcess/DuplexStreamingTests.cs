@@ -19,7 +19,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
         public async Task DuplexStreaming(ChannelContextFactory factory)
         {
             using var ctx = factory.Create();
-            var call = ctx.Client.DuplexStreaming();
+            AsyncDuplexStreamingCall<RequestMessage, ResponseMessage> call = ctx.Client.DuplexStreaming();
 
             Assert.True(await call.ResponseStream.MoveNext());
             Assert.That(call.ResponseStream.Current.Value, Is.EqualTo(10));

@@ -8,18 +8,21 @@ namespace Ipc.Grpc.NamedPipes.Internal.Helpers;
 
 public static class StreamExtension
 {
-    public static Task<int> ReadAsync(this Stream stream, Memory<byte> buffer, CancellationToken cancellationToken)
+    public static async Task<int> ReadAsync(this Stream stream, Memory<byte> buffer, CancellationToken cancellationToken)
     {
         if (MemoryMarshal.TryGetArray(buffer, out ArraySegment<byte> segment) == false)
             throw new NotSupportedException("Array-based buffer required");
 
-        return stream.ReadAsync(segment.Array!, segment.Offset, segment.Count, cancellationToken);
+        return await stream.ReadAsync(segment.Array!, segment.Offset, segment.Count, cancellationToken)
+                    .ConfigureAwait(false);
     }
-    public static Task WriteAsync(this Stream stream, ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
+
+    public static async Task WriteAsync(this Stream stream, ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
     {
         if (MemoryMarshal.TryGetArray(buffer, out ArraySegment<byte> segment) == false)
             throw new NotSupportedException("Array-based buffer required");
 
-        return stream.WriteAsync(segment.Array, segment.Offset, segment.Count, cancellationToken);
+        await stream.WriteAsync(segment.Array, segment.Offset, segment.Count, cancellationToken)
+                     .ConfigureAwait(false);
     }
 }

@@ -348,13 +348,13 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task RestartServerAfterCall(ChannelContextFactory factory)
         {
-            using ChannelContext ctx1 = factory.Create();
+            ChannelContext ctx1 = factory.Create();
             ResponseMessage response1 = await ctx1.Client.SimpleUnaryAsync(new RequestMessage { Value = 10 });
             Assert.That(response1.Value, Is.EqualTo(10));
 
-            //await Task.Delay(500);
+            await Task.Delay(1);
             ctx1.Dispose();
-            //await Task.Delay(500);
+            await Task.Delay(1);
 
             using ChannelContext ctx2 = factory.Create();
             ResponseMessage response2 = await ctx2.Client.SimpleUnaryAsync(new RequestMessage { Value = 10 });
@@ -365,14 +365,15 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task RestartServerAfterNoCalls(ChannelContextFactory factory)
         {
-            using ChannelContext ctx1 = factory.Create();
+            ChannelContext ctx1 = factory.Create();
 
-            await Task.Delay(500);
+            await Task.Delay(1);
             ctx1.Dispose();
-            await Task.Delay(500);
+            await Task.Delay(1);
 
             using ChannelContext ctx2 = factory.Create();
             ResponseMessage response2 = await ctx2.Client.SimpleUnaryAsync(new RequestMessage { Value = 10 });
+            Console.WriteLine("call succeed");
             Assert.That(response2.Value, Is.EqualTo(10));
         }
 
