@@ -16,12 +16,12 @@ public class ServerListenerTests
     {
         using var pool = new ServerListener($"{Guid.NewGuid()}", NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnection, ValueTask>>());
 
-        pool.Start(1);
+        pool.Start();
         pool.Stop();
         pool.Stop();
 
-        pool.Start(10);
-        pool.Start(10);
+        pool.Start();
+        pool.Start();
         pool.Stop();
     }
 

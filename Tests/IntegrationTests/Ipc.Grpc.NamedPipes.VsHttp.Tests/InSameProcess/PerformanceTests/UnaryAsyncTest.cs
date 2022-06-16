@@ -24,11 +24,15 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
             for (int i = 0; i < responses.Capacity; i++)
             {
                 var client = factory.CreateClient();
-                ResponseMessage ret = await client.SimpleUnaryAsync(new RequestMessage());
+                ResponseMessage ret = await client.SimpleUnaryAsync(new RequestMessage { Value = 111 });
                 responses.Add(ret);
             }
 
             stopwatch.Stop();
+
+            Assert.That(responses.Count, Is.EqualTo(1_000));
+            foreach (ResponseMessage response in responses)
+                Assert.That(response.Value, Is.EqualTo(111));
             Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
         }
 
@@ -36,8 +40,9 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task Calls_Sequential_Performance(ChannelContextFactory factory)
         {
+            const int iterationCpt = 1_000;
             using var ctx = factory.Create();
-            List<ResponseMessage> responses = new(10_000);
+            List<ResponseMessage> responses = new(iterationCpt);
             var stopwatch = Stopwatch.StartNew();
 
             for (int i = 0; i < responses.Capacity; i++)
@@ -47,6 +52,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
             }
 
             stopwatch.Stop();
+            Assert.That(responses.Count, Is.EqualTo(iterationCpt));
             foreach (ResponseMessage response in responses)
                 Assert.That(response.Value, Is.EqualTo(123));
             Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
@@ -105,7 +111,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess.PerformanceTests
             Assert.That(ret.Binary, Is.EqualTo(byteString));
             Console.WriteLine($" Elapsed :{stopwatch.Elapsed}");
         }
-        
+
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]

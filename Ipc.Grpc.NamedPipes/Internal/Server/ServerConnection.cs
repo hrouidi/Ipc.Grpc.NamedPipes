@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using Ipc.Grpc.NamedPipes.Internal.Helpers;
 using Ipc.Grpc.NamedPipes.Internal.Transport;
-using Message = Ipc.Grpc.NamedPipes.Internal.Transport.Message;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {

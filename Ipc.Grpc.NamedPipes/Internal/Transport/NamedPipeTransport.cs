@@ -39,24 +39,24 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
             FrameHeader header = FrameHeader.FromSpan(_frameHeaderBytes.Span);
 
             IMemoryOwner<byte> owner = MemoryPool<byte>.Shared.Rent(header.TotalSize);
-            Memory<byte> framePlusPayloadBytes = owner.Memory.Slice(0, header.TotalSize);
+            Memory<byte> messageBytes = owner.Memory.Slice(0, header.TotalSize);
 
-            readBytes = await _pipeStream.ReadAsync(framePlusPayloadBytes, token)
+            readBytes = await _pipeStream.ReadAsync(messageBytes, token)
                                          .ConfigureAwait(false);
             if (readBytes == 0)
                 return Message.Eof;
 
             if (readBytes != header.TotalSize)
             {
-                Debug.Assert(readBytes == header.TotalSize, $"{_remote}  is laying: read bytes count:{readBytes}/{header.TotalSize}: buffer= {framePlusPayloadBytes.ToArray().Select(x => x.ToString()).Aggregate("", (x, y) => $"{x}|{y}")}");
+                Debug.Assert(readBytes == header.TotalSize, $"{_remote}  is laying: read bytes count:{readBytes}/{header.TotalSize}: buffer= {messageBytes.ToArray().Select(x => x.ToString()).Aggregate("", (x, y) => $"{x}|{y}")}");
             }
 
             Debug.Assert(_pipeStream.IsMessageComplete, "Unexpected message :too long!");
 
-            Memory<byte> payloadBytes = framePlusPayloadBytes.Slice(header.MessageSize);
+            Memory<byte> payloadBytes = messageBytes.Slice(header.MessageSize);
 
             Message message = new(payloadBytes, owner);
-            message.MergeFrom(framePlusPayloadBytes.Span.Slice(0, header.MessageSize));
+            message.MergeFrom(messageBytes.Span.Slice(0, header.MessageSize));
             return message;
         }
 

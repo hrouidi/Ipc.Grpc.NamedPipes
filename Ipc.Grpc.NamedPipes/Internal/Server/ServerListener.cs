@@ -12,7 +12,10 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly string _pipeName;
         private readonly CancellationTokenSource _shutdownCancellationTokenSource;
         private readonly NamedPipeServerOptions _options;
-        private readonly List<Task> _listenerTasks;
+
+        private bool _isReady;
+        private readonly TaskCompletionSource<bool> _listenerReadyTask;
+        private Task _listenerTasks;
 
         private readonly PipePool _pipePool;
 
@@ -27,38 +30,34 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _options = options;
             _methodHandlers = methodHandlers;
             _shutdownCancellationTokenSource = new CancellationTokenSource();
-            _listenerTasks = new List<Task>();
+            _listenerReadyTask = new TaskCompletionSource<bool>();
 
             _pipePool = new PipePool(CreatePipeServer);
         }
 
-        public void Start(int poolSize = 1)
+        public void Start() //Blocking start
         {
             CheckIfDisposed();
             if (_started == false)
             {
-                for (int i = 0; i < poolSize; i++)
-                {
-                    Task task = Task.Factory.StartNew(async () => await ListenConnectionsAsync(), TaskCreationOptions.LongRunning);
-                    _listenerTasks.Add(task);
-                }
-                Task.WaitAll(_listenerTasks.ToArray());
+                _listenerTasks = Task.Factory.StartNew(() => ListenConnectionsAsync(), TaskCreationOptions.LongRunning);
+                _listenerReadyTask.Task.Wait();
                 _started = true;
             }
         }
 
-        public void Stop()
+        public void Stop() //Blocking stop
         {
             CheckIfDisposed();
             if (_started)
             {
                 _started = false;
                 _shutdownCancellationTokenSource.Cancel();
-                Task.WaitAll(_listenerTasks.ToArray());
+                _listenerTasks.Wait();
             }
         }
 
-        public void Dispose()
+        public void Dispose()//Kill
         {
             _disposed = true;
             _shutdownCancellationTokenSource.Cancel();
@@ -105,7 +104,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 #endif
         }
 
-        private async Task ListenConnectionsAsync()//Should never throw
+        private void ListenConnectionsAsync()//Should never throw
         {
             while (true)
             {
@@ -114,7 +113,14 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 try
                 {
                     pipeServer = _pipePool.Get();
-                    await pipeServer.WaitForConnectionAsync(_shutdownCancellationTokenSource.Token).ConfigureAwait(false);
+                    if(_isReady == false)
+                    {
+                        _listenerReadyTask.TrySetResult(true);
+                        _isReady = true;
+                    }
+                    pipeServer.WaitForConnectionAsync(_shutdownCancellationTokenSource.Token)
+                              .GetAwaiter()
+                              .GetResult();
                     //Console.WriteLine($"####  after connected thread id: {Thread.CurrentThread.ManagedThreadId}");
                     _ = HandleConnectionAsync(pipeServer);
                 }
@@ -132,7 +138,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private async Task HandleConnectionAsync(NamedPipeServerStream pipeServer)//should never throw
         {
             await Task.Yield();
-            ServerConnection connection = new(pipeServer, _methodHandlers, _shutdownCancellationTokenSource.Token);
+            using ServerConnection connection = new(pipeServer, _methodHandlers, _shutdownCancellationTokenSource.Token);
             try
             {
                 await connection.ListenMessagesAsync().ConfigureAwait(false);
@@ -143,10 +149,6 @@ namespace Ipc.Grpc.NamedPipes.Internal
             {
                 _pipePool.AddNew();
                 Console.WriteLine($"{nameof(ServerListener)} Error while ListenMessagesAsync: {ex.Message}");
-            }
-            finally
-            {
-                connection.Dispose();
             }
         }
 
