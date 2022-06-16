@@ -9,7 +9,7 @@ using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
 using NUnit.Framework;
 using MultiChannelSource = Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.CaseSources.MultiChannelSource;
 
-namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.InSameProcess
+namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests
 {
     public class UnaryTests
     {
@@ -126,7 +126,7 @@ namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.InSameProcess
             Assert.That(exception.StatusCode, Is.EqualTo(StatusCode.Cancelled));
             return Task.CompletedTask;
         }
-        
+
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
@@ -167,7 +167,7 @@ namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.InSameProcess
 
         }
 
-        
+
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
         public void ConnectionTimeout(ChannelContextFactory factory)

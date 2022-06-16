@@ -8,12 +8,26 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using Grpc.Core;
+
+/* Unmerged change from project 'Ipc.Grpc.NamedPipes.VsHttp.Tests (net461)'
+Before:
+using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
+using Ipc.Grpc.NamedPipes.VsHttp.Tests.CaseSources;
+After:
+using Ipc;
+using Ipc.Grpc;
+using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
+using Ipc.Grpc.NamedPipes.VsHttp;
+using Ipc.Grpc.NamedPipes.VsHttp.Tests;
+using Ipc.Grpc.NamedPipes.VsHttp.Tests;
+using Ipc.Grpc.NamedPipes.VsHttp.Tests.CaseSources;
+*/
 using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
 using Ipc.Grpc.NamedPipes.VsHttp.Tests.CaseSources;
 using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
 using NUnit.Framework;
 
-namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
+namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
 {
     public class UnaryTests
     {
@@ -408,7 +422,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
 
             var options = new NamedPipeServerOptions { PipeSecurity = security };
 
-            Assert.Throws<UnauthorizedAccessException>(()=>factory.Create(options));
+            Assert.Throws<UnauthorizedAccessException>(() => factory.Create(options));
         }
 #endif
 

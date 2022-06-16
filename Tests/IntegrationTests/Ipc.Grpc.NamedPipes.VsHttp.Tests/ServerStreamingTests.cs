@@ -8,12 +8,12 @@ using Ipc.Grpc.NamedPipes.VsHttp.Tests.CaseSources;
 using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
 using NUnit.Framework;
 
-namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
+namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
 {
     public class ServerStreamingTests
     {
         public const int TestTimeout = 3000;
-        
+
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task ServerStreaming(ChannelContextFactory factory)
@@ -38,7 +38,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             Assert.True(await call.ResponseStream.MoveNext());
             Assert.False(await call.ResponseStream.MoveNext());
             //void WriteAction() => ;
-            var exception = Assert.ThrowsAsync<InvalidOperationException>(async()=>await ctx.Impl.ServerStream.WriteAsync(new ResponseMessage { Value = 1 }));
+            var exception = Assert.ThrowsAsync<InvalidOperationException>(async () => await ctx.Impl.ServerStream.WriteAsync(new ResponseMessage { Value = 1 }));
             Assert.That(exception!.Message, Is.EqualTo("Response stream has already been completed."));
         }
 
@@ -50,7 +50,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
             var call = ctx.Client.ThrowingServerStreaming(new RequestMessage { Value = 1 });
             Assert.True(await call.ResponseStream.MoveNext());
             Assert.ThrowsAsync<RpcException>(async () => await call.ResponseStream.MoveNext());
-            var exception = Assert.ThrowsAsync<InvalidOperationException>(async()=>await ctx.Impl.ServerStream.WriteAsync(new ResponseMessage { Value = 1 }));
+            var exception = Assert.ThrowsAsync<InvalidOperationException>(async () => await ctx.Impl.ServerStream.WriteAsync(new ResponseMessage { Value = 1 }));
             Assert.That(exception!.Message, Is.EqualTo("Response stream has already been completed."));
         }
 

@@ -7,7 +7,7 @@ using Ipc.Grpc.NamedPipes.VsHttp.Tests.CaseSources;
 using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
 using NUnit.Framework;
 
-namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
+namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
 {
     public class ClientStreamingTests
     {
@@ -96,7 +96,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
 
             var call = ctx.Client.ClientStreaming(deadline: deadline);
             await Task.Delay(1);
-            
+
             Assert.CatchAsync<Exception>(async () => await call.RequestStream.WriteAsync(new RequestMessage { Value = 3 }));
             var exception = Assert.ThrowsAsync<RpcException>(async () => await call.ResponseAsync);
             Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.DeadlineExceeded));
@@ -129,21 +129,21 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.InSameProcess
         //[TestCaseSource(typeof(MultiChannelSource))]
         //public Task Throw(ChannelContextFactory factory)
         //{
-            
+
         //}
 
         //[Test, Timeout(TestTimeout)]
         //[TestCaseSource(typeof(MultiChannelSource))]
         //public Task ThrowCanceledException(ChannelContextFactory factory)
         //{
-            
+
         //}
 
         //[Test, Timeout(TestTimeout)]
         //[TestCaseSource(typeof(MultiChannelSource))]
         //public Task ThrowRpcException(ChannelContextFactory factory)
         //{
-            
+
         //}
 
         #endregion

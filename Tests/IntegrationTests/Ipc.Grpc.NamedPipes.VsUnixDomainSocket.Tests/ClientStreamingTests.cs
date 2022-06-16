@@ -8,7 +8,7 @@ using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
 using NUnit.Framework;
 using MultiChannelSource = Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.CaseSources.MultiChannelSource;
 
-namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.InSameProcess
+namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests
 {
     public class ClientStreamingTests
     {
@@ -70,7 +70,7 @@ namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.InSameProcess
             Assert.That(exception.Message, Is.EqualTo("Request stream has already been completed."));
         }
 
-        
+
 
 
         [Test, Timeout(TestTimeout)]
@@ -111,7 +111,7 @@ namespace Ipc.Grpc.NamedPipes.VsUnixDomainSocket.Tests.InSameProcess
         {
         }
 
-        
+
 
     }
 }
