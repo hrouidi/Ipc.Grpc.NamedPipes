@@ -3,15 +3,16 @@ using System.Diagnostics;
 
 namespace Ipc.Grpc.NamedPipes.Tests.Client;
 
-public class ProcessManager : IDisposable
+public class RemoteProcessManager : IDisposable
 {
     private readonly Process _process;
-    public ProcessManager(string exePath)
+    public RemoteProcessManager(string exePath,string pipeName)
     {
         _process = new Process()
         {
             StartInfo = new ProcessStartInfo(exePath)
             {
+                Arguments = pipeName,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,

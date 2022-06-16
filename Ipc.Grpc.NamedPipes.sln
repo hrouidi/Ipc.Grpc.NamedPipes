@@ -33,6 +33,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Ipc.Grpc.NamedPipes.Tests",
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Ipc.Grpc.NamedPipes.VsBenchmarks", "Benchmarks\Ipc.Grpc.NamedPipes.VsBenchmarks\Ipc.Grpc.NamedPipes.VsBenchmarks.csproj", "{4EA3736A-AD45-42AE-8C19-41F4089EDFEB}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Remote", "Remote", "{1F0539A9-48EA-422F-A863-33BCD54227ED}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Ipc.Grpc.NamedPipes.Remote.Tests", "Tests\IntegrationTests\Remote\Ipc.Grpc.NamedPipes.Remote.Tests.csproj", "{A9B16D0D-CCE0-4867-8811-8EF479ACE4BA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -75,6 +79,10 @@ Global
 		{4EA3736A-AD45-42AE-8C19-41F4089EDFEB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4EA3736A-AD45-42AE-8C19-41F4089EDFEB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4EA3736A-AD45-42AE-8C19-41F4089EDFEB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A9B16D0D-CCE0-4867-8811-8EF479ACE4BA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A9B16D0D-CCE0-4867-8811-8EF479ACE4BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A9B16D0D-CCE0-4867-8811-8EF479ACE4BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A9B16D0D-CCE0-4867-8811-8EF479ACE4BA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -92,6 +100,8 @@ Global
 		{A39129BD-8662-4E97-BAA8-6BBE32C610C2} = {0AC631BC-2C45-45BD-950C-2A0C89ED0541}
 		{CDEC1245-CAA3-4923-81FA-9E33095916A9} = {4260E770-9899-4EFD-9BDE-DF4018A65EF2}
 		{4EA3736A-AD45-42AE-8C19-41F4089EDFEB} = {62F96A29-D725-42BD-AC1E-25BD18A577AF}
+		{1F0539A9-48EA-422F-A863-33BCD54227ED} = {0AC631BC-2C45-45BD-950C-2A0C89ED0541}
+		{A9B16D0D-CCE0-4867-8811-8EF479ACE4BA} = {1F0539A9-48EA-422F-A863-33BCD54227ED}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3A45AE3B-232C-470F-92B0-52AA4E901903}
