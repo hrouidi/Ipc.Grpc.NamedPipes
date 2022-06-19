@@ -1,5 +1,6 @@
 ﻿using System.Linq;
 using Grpc.Core;
+using Grpc.Core.Interceptors;
 using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
 using Ipc.Grpc.NamedPipes.Tests.ProtoContract;
 
@@ -19,7 +20,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers
             var impl = new TestServiceImplementation();
             var server = new Server(Options)
             {
-                Services = { TestService.BindService(impl) },
+                Services = { TestService.BindService(impl).Intercept() },
                 Ports = { new ServerPort("localhost", 0, ServerCredentials.Insecure) }
             };
             server.Start();

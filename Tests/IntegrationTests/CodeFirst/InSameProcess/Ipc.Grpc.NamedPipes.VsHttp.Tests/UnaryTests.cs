@@ -1,12 +1,10 @@
 using System;
 using System.Diagnostics;
 using System.IO.Pipes;
-using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
-using Google.Protobuf;
 using Grpc.Core;
 using Ipc.Grpc.NamedPipes.Tests.ProtoContract;
 using Ipc.Grpc.NamedPipes.VsHttp.Tests.CaseSources;
@@ -18,7 +16,6 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
     public class UnaryTests
     {
         public const int TestTimeout = 3000;
-
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
@@ -102,7 +99,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
             using ChannelContext ctx = factory.Create();
             var cts = new CancellationTokenSource();
             cts.Cancel();
-            var responseTask = ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 10 },  cts.Token);
+            var responseTask = ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 10 }, cts.Token);
             var exception = Assert.ThrowsAsync<RpcException>(async () => await responseTask);
             Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Cancelled));
             Assert.False(ctx.Impl.SimplyUnaryCalled);
@@ -144,7 +141,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
             var random = new Random();
             var bytes = new byte[1024 * 1024];
             random.NextBytes(bytes);
-           // ByteString byteString = UnsafeByteOperations.UnsafeWrap(bytes);
+            // ByteString byteString = UnsafeByteOperations.UnsafeWrap(bytes);
             var request = new RequestMessage { Binary = bytes };
 
             var averageExecutionTime = (int)await MeasureCallTime();
@@ -155,7 +152,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
                 var cts = new CancellationTokenSource(random.Next(averageExecutionTime));
                 try
                 {
-                    ResponseMessage response = await ctx.Client.SimpleUnaryAsync(request,  cts.Token);
+                    ResponseMessage response = await ctx.Client.SimpleUnaryAsync(request, cts.Token);
                 }
                 catch (RpcException ex)
                 {
@@ -166,7 +163,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
             async Task<long> MeasureCallTime()
             {
                 var stopwatch = Stopwatch.StartNew();
-                ResponseMessage response = await ctx.Client.SimpleUnaryAsync(request,  CancellationToken.None);
+                ResponseMessage response = await ctx.Client.SimpleUnaryAsync(request, CancellationToken.None);
                 stopwatch.Stop();
                 Assert.That(response.Binary, Is.EqualTo(bytes));
                 Console.WriteLine($"Average execution time for {nameof(ctx.Client.SimpleUnaryAsync)} : {stopwatch.ElapsedMilliseconds} ms ");
@@ -320,7 +317,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
         public void ConnectionTimeout(ChannelContextFactory factory)
         {
             var client = factory.CreateClient();
-            var exception = Assert.ThrowsAsync<RpcException>(async () =>await  client.SimpleUnaryAsync(new RequestMessage { Value = 10 }));
+            var exception = Assert.ThrowsAsync<RpcException>(async () => await client.SimpleUnaryAsync(new RequestMessage { Value = 10 }));
             Assert.That(exception!.StatusCode, Is.EqualTo(StatusCode.Unavailable));
         }
 

@@ -1,34 +1,65 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Grpc.Core;
+using Grpc.Core.Interceptors;
 using Ipc.Grpc.NamedPipes.Internal;
 
 namespace Ipc.Grpc.NamedPipes
 {
     public class NamedPipeServer : IDisposable
     {
+        private readonly NamedPipesServiceBinder _binder;
         private readonly ServerListener _listener;
-        private readonly Dictionary<string, Func<ServerConnection, ValueTask>> _methodHandlers = new();
+
+        public ServiceBinderBase ServiceBinder => _binder;
 
         public NamedPipeServer(string pipeName) : this(pipeName, NamedPipeServerOptions.Default) { }
-
         public NamedPipeServer(string pipeName, NamedPipeServerOptions options)
         {
-            _listener = new ServerListener(pipeName, options, _methodHandlers);
-            ServiceBinder = new ServiceBinderImpl(this);
+            _binder = new NamedPipesServiceBinder();
+            _listener = new ServerListener(pipeName, options, _binder.MethodHandlers);
         }
 
-        public ServiceBinderBase ServiceBinder { get; }
+        public NamedPipeServer AddInterceptor(Interceptor interceptor)
+        {
+            _binder.Interceptors.Add(interceptor);
+            return this;
+        }
+
+        public void Run()
+        {
+            _listener.Start();
+            _listener.ListeningTask
+                     .GetAwaiter()
+                     .GetResult();
+        }
+
+        public Task RunAsync()
+        {
+            _listener.Start();
+            return _listener.ListeningTask;
+        }
 
         public void Start()
         {
             _listener.Start();
         }
 
-        public void Stop()
+        public ValueTask StartAsync()
+        {
+            return _listener.StartAsync();
+        }
+
+        public void Shutdown()
         {
             _listener.Stop();
+        }
+
+        public ValueTask ShutdownAsync()
+        {
+            return _listener.StopAsync();
         }
 
         public void Kill()
@@ -41,13 +72,15 @@ namespace Ipc.Grpc.NamedPipes
             _listener.Dispose();
         }
 
-        private class ServiceBinderImpl : ServiceBinderBase
+        private class NamedPipesServiceBinder : ServiceBinderBase
         {
-            private readonly NamedPipeServer _server;
+            internal readonly Dictionary<string, Func<ServerConnection, ValueTask>> MethodHandlers;
+            internal readonly List<Interceptor> Interceptors;
 
-            public ServiceBinderImpl(NamedPipeServer server)
+            public NamedPipesServiceBinder()
             {
-                _server = server;
+                MethodHandlers = new Dictionary<string, Func<ServerConnection, ValueTask>>();
+                Interceptors = new List<Interceptor>();
             }
 
             public override void AddMethod<TRequest, TResponse>(Method<TRequest, TResponse> method, UnaryServerMethod<TRequest, TResponse> handler)
@@ -59,8 +92,9 @@ namespace Ipc.Grpc.NamedPipes
                     try
                     {
                         TRequest request = connection.GetUnaryRequest(method.RequestMarshaller);
-                        
-                        TResponse response = await handler(request, connection.CallContext).ConfigureAwait(false);
+
+                        UnaryServerMethod<TRequest, TResponse> pipeline = Interceptors.Aggregate(handler, (current, interceptor) => (req, ctx) => interceptor.UnaryServerHandler(req, ctx, current));
+                        TResponse response = await pipeline(request, connection.CallContext).ConfigureAwait(false);
 
                         await connection.Success(method.ResponseMarshaller, response)
                                         .ConfigureAwait(false);
@@ -72,7 +106,7 @@ namespace Ipc.Grpc.NamedPipes
                     }
                 }
 
-                _server._methodHandlers.Add(method.FullName, Handle);
+                MethodHandlers.Add(method.FullName, Handle);
             }
 
             public override void AddMethod<TRequest, TResponse>(Method<TRequest, TResponse> method, ClientStreamingServerMethod<TRequest, TResponse> handler)
@@ -84,8 +118,9 @@ namespace Ipc.Grpc.NamedPipes
                     try
                     {
                         IAsyncStreamReader<TRequest> requestStreamReader = connection.GetRequestStreamReader(method.RequestMarshaller);
-                        
-                        TResponse response = await handler(requestStreamReader, connection.CallContext).ConfigureAwait(false);
+
+                        ClientStreamingServerMethod<TRequest, TResponse> pipeline = Interceptors.Aggregate(handler, (current, interceptor) => (req, ctx) => interceptor.ClientStreamingServerHandler(req, ctx, current));
+                        TResponse response = await pipeline(requestStreamReader, connection.CallContext).ConfigureAwait(false);
 
                         await connection.Success(method.ResponseMarshaller, response).ConfigureAwait(false);
                     }
@@ -95,7 +130,7 @@ namespace Ipc.Grpc.NamedPipes
                     }
                 }
 
-                _server._methodHandlers.Add(method.FullName, Handle);
+                MethodHandlers.Add(method.FullName, Handle);
             }
 
             public override void AddMethod<TRequest, TResponse>(Method<TRequest, TResponse> method, ServerStreamingServerMethod<TRequest, TResponse> handler)
@@ -110,7 +145,8 @@ namespace Ipc.Grpc.NamedPipes
 
                         IServerStreamWriter<TResponse> responseStreamReader = connection.GetResponseStreamWriter(method.ResponseMarshaller);
 
-                        await handler(request, responseStreamReader, connection.CallContext).ConfigureAwait(false);
+                        ServerStreamingServerMethod<TRequest, TResponse> pipeline = Interceptors.Aggregate(handler, (current, interceptor) => (req, rep, ctx) => interceptor.ServerStreamingServerHandler(req, rep, ctx, current));
+                        await pipeline(request, responseStreamReader, connection.CallContext).ConfigureAwait(false);
 
                         await connection.Success<TResponse>()
                                         .ConfigureAwait(false);
@@ -122,7 +158,7 @@ namespace Ipc.Grpc.NamedPipes
                     }
                 }
 
-                _server._methodHandlers.Add(method.FullName, Handle);
+                MethodHandlers.Add(method.FullName, Handle);
             }
 
             public override void AddMethod<TRequest, TResponse>(Method<TRequest, TResponse> method, DuplexStreamingServerMethod<TRequest, TResponse> handler)
@@ -136,7 +172,8 @@ namespace Ipc.Grpc.NamedPipes
                         var requestStreamReader = connection.GetRequestStreamReader(method.RequestMarshaller);
                         var responseStreamReader = connection.GetResponseStreamWriter(method.ResponseMarshaller);
 
-                        await handler(requestStreamReader, responseStreamReader, connection.CallContext).ConfigureAwait(false);
+                        var pipeline = Interceptors.Aggregate(handler, (current, interceptor) => (req, rep, ctx) => interceptor.DuplexStreamingServerHandler(req, rep, ctx, current));
+                        await pipeline(requestStreamReader, responseStreamReader, connection.CallContext).ConfigureAwait(false);
 
                         await connection.Success<TResponse>()
                                         .ConfigureAwait(false); ;
@@ -148,7 +185,7 @@ namespace Ipc.Grpc.NamedPipes
                     }
                 }
 
-                _server._methodHandlers.Add(method.FullName, Handle);
+                MethodHandlers.Add(method.FullName, Handle);
             }
         }
     }

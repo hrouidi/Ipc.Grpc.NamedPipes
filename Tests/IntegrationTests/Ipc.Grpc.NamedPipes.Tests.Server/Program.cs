@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
 using Ipc.Grpc.NamedPipes.Tests.ProtoContract;
 
@@ -6,15 +7,22 @@ namespace Ipc.Grpc.NamedPipes.Tests.Server;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         string pipeName = GetPipeName(args);
         var impl = new TestServiceImplementation();
+
         var server = new NamedPipeServer(pipeName);
+        
+        IdleTimeInterceptor idleTimeInterceptor = new(TimeSpan.FromMinutes(5), () => server.Shutdown());
+        server.AddInterceptor(idleTimeInterceptor);
+
         TestService.BindService(server.ServiceBinder, impl);
-        server.Start();
-        Console.WriteLine($"Server started at :{pipeName}");
-        Console.ReadLine();
+
+        Console.WriteLine($"Server starting at :{pipeName}");
+        idleTimeInterceptor.Start();
+        await server.RunAsync();
+        Console.WriteLine($"Server shutdown at :{pipeName}");
     }
 
     private static string GetPipeName(string[] args)
