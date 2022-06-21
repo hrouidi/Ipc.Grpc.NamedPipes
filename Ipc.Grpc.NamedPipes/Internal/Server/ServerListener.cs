@@ -20,9 +20,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private volatile bool _started;
         private volatile bool _disposed;
 
-        private Task _listenerTask;
-
-        public Task ListeningTask => _listenerTask;
+        public Task ListeningTask { get; private set; }
 
         public ServerListener(string pipeName, NamedPipeServerOptions options, IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> methodHandlers)
         {
@@ -40,7 +38,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             CheckIfDisposed();
             if (_started == false)
             {
-                _listenerTask = Task.Factory.StartNew(() => ListenConnectionsAsync(), TaskCreationOptions.LongRunning);
+                ListeningTask = Task.Factory.StartNew(() => ListenConnectionsAsync(), TaskCreationOptions.LongRunning);
                 _listenerReadyTask.Task.Wait();
                 _started = true;
             }
@@ -51,7 +49,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             CheckIfDisposed();
             if (_started == false)
             {
-                _listenerTask = Task.Factory.StartNew(() => ListenConnectionsAsync(), TaskCreationOptions.LongRunning);
+                ListeningTask = Task.Factory.StartNew(() => ListenConnectionsAsync(), TaskCreationOptions.LongRunning);
                 await _listenerReadyTask.Task.ConfigureAwait(false);
                 _started = true;
             }
@@ -64,7 +62,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             {
                 _started = false;
                 _shutdownCancellationTokenSource.Cancel();
-                _listenerTask.Wait();
+                ListeningTask.Wait();
             }
         }
 
@@ -75,7 +73,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             {
                 _started = false;
                 _shutdownCancellationTokenSource.Cancel();
-                await _listenerTask.ConfigureAwait(false);
+                await ListeningTask.ConfigureAwait(false);
             }
         }
 

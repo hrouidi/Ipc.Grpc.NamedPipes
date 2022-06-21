@@ -7,10 +7,10 @@
 
 		
 		
-		<Version>0.2.0</Version>
-		<PackageVersion>0.2.0</PackageVersion>
+		<Version>0.3.0</Version>
+		<PackageVersion>0.3.0</PackageVersion>
 		<AssemblyVersion>1.0.0.0</AssemblyVersion>
-
+		
 		<Authors>Houssam Rouidi</Authors>
 		<Description>Ipc over grpc and windows named pipes</Description>
 		<Copyright>Copyright 2022 Houssam Rouidi</Copyright>
@@ -21,17 +21,25 @@
 		<RepositoryType>git</RepositoryType>
 		<PackageTags>ipc grpc namedpipe namedpipes named pipe pipes</PackageTags>
 
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
 	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Google.Protobuf" Version="3.21.1" />
 		<PackageReference Include="Grpc.Core.Api" Version="2.46.3" />
-		<PackageReference Include="Grpc.Tools" Version="2.46.3" PrivateAssets="All" />
+		
+		<PackageReference Include="System.Memory" Version="4.5.5"  Condition="'$(TargetFramework)' == 'net461'  or '$(TargetFramework)' == 'netstandard2.0'"/>
+		<PackageReference Include="System.Threading.Channels" Version="6.0.0" Condition="'$(TargetFramework)' != 'net5.0-windows'"/>
+		<PackageReference Include="System.ValueTuple" Version="4.5.0" Condition="'$(TargetFramework)' == 'net461'"/>
 		<PackageReference Include="System.IO.Pipes.AccessControl" Version="5.0.0" Condition="'$(TargetFramework)' == 'net5.0-windows'" />
-		<PackageReference Include="System.Memory" Version="4.5.5" />
-
-		<PackageReference Include="System.Threading.Channels" Version="6.0.0" />
-		<PackageReference Include="System.ValueTuple" Version="4.5.0" />
+		
+		<PackageReference Include="Grpc.Tools" Version="2.46.3" PrivateAssets="All" />
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
+		
 	</ItemGroup>
 
 	<ItemGroup>
