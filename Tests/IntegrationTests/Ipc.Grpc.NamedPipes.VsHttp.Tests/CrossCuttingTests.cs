@@ -51,7 +51,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
             Assert.That(exception.Status.Detail, Is.EqualTo("failed to connect to all addresses"));
         }
 
-        [Test, Timeout(TestTimeout)]
+        [Test, Timeout(TestTimeout),Explicit]
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task RestartServerAfterCall(ChannelContextFactory factory)
         {
@@ -68,7 +68,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
             Assert.That(response2.Value, Is.EqualTo(10));
         }
 
-        [Test, Timeout(TestTimeout)]
+        [Test, Timeout(TestTimeout), Explicit]
         [TestCaseSource(typeof(MultiChannelSource))]
         public async Task RestartServerAfterNoCalls(ChannelContextFactory factory)
         {
