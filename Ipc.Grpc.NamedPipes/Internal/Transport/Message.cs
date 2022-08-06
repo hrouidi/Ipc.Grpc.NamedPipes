@@ -29,7 +29,7 @@ public sealed partial class Message : IDisposable
 
 }
 
-internal readonly struct MessageInfo<TPayload> : IEquatable<MessageInfo<TPayload>> where TPayload : class
+public readonly struct MessageInfo<TPayload> : IEquatable<MessageInfo<TPayload>> where TPayload : class
 {
     public Message Message { get; }
 

@@ -1,29 +1,28 @@
 #nullable enable
-using System;
-using System.Linq;
 using System.Buffers;
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 using Google.Protobuf;
-using Ipc.Grpc.NamedPipes.Internal.Helpers;
+using Ipc.Grpc.NamedPipes.Internal.Transport;
+using Ipc.Grpc.SharedMemory.Serialization;
 
-namespace Ipc.Grpc.NamedPipes.Internal.Transport
+namespace Ipc.Grpc.SharedMemory
 {
-    internal class NamedPipeTransport : IDisposable
+    public class SharedMemoryTransport : IDisposable
     {
         private readonly IMemoryOwner<byte> _frameHeaderOwner;
         private readonly Memory<byte> _frameHeaderBytes;
         private readonly PipeStream _pipeStream;
+        private readonly SharedMemory _sharedMemory;
 
         private readonly string _remote;//Debug only
 
-        public NamedPipeTransport(PipeStream pipeStream)
+        public SharedMemoryTransport(SharedMemory sharedMemory)
         {
-            _pipeStream = pipeStream;
-            _remote = pipeStream is NamedPipeClientStream ? "Server" : "Client";
+            _sharedMemory = sharedMemory;
+            _pipeStream = null;
+            _remote = _pipeStream is NamedPipeClientStream ? "Server" : "Client";
             _frameHeaderOwner = MemoryPool<byte>.Shared.Rent(FrameHeader.Size);
             _frameHeaderBytes = _frameHeaderOwner.Memory.Slice(0, FrameHeader.Size);
         }
