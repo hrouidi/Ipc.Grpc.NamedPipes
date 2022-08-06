@@ -11,18 +11,12 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Grpc" Version="2.46.3" />
-		<PackageReference Include="Grpc.Tools" Version="2.47.0" PrivateAssets="All" />
-		<PackageReference Include="Ipc.Grpc.NamedPipes" Version="0.3.3" />
-		<PackageReference Include="protobuf-net.Grpc" Version="1.0.171" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<Protobuf Include="**/*.proto" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\Ipc.Grpc.NamedPipes.Tests.ProtoContract\Ipc.Grpc.NamedPipes.Tests.ProtoContract.csproj" />
+		<ProjectReference Include="..\..\..\..\..\Ipc.Grpc.NamedPipes\Ipc.Grpc.NamedPipes.csproj" />
+		<ProjectReference Include="..\Ipc.Grpc.NamedPipes.Tests.ProtoContract\Ipc.Grpc.NamedPipes.Tests.ProtoContract.csproj" />
 	</ItemGroup>
 
 </Project>

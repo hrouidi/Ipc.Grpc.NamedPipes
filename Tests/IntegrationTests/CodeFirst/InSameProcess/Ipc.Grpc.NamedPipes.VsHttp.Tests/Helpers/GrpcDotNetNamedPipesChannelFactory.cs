@@ -1,6 +1,6 @@
 ﻿using System;
 using Ipc.Grpc.NamedPipes.Tests.ProtoContract;
-using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers.Extensions;
+using ProtoBuf.Grpc;
 using ProtoBuf.Grpc.Client;
 
 namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers
@@ -15,7 +15,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers
 
             var impl = new TestServiceImplementation();
             var server = new GrpcDotNetNamedPipes.NamedPipeServer(_pipeName, options);
-            server.Bind<ITestService>(impl);
+            server.ServiceBinder.AddCodeFirst(impl);
             server.Start();
             return new ChannelContext
             {

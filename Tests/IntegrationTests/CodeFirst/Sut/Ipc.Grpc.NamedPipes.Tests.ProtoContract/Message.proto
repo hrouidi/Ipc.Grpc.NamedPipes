@@ -1,0 +1,22 @@
+
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package Ipc.Grpc.NamedPipes.Tests.ProtoContract;
+
+
+message ProtoMessage {
+	string name = 1;
+	Kind kind = 2;
+	google.protobuf.Timestamp date = 3;
+   
+	enum Kind
+	{
+		unary = 0;
+		clientStreaming = 1;
+		serverStreaming = 2;
+		duplexStreaming = 3;
+	}
+}
+

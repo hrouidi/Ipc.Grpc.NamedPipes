@@ -28,4 +28,5 @@ public sealed class ResponseMessage
 public interface ITestService
 {
     ValueTask<ResponseMessage> SimpleUnaryAsync(RequestMessage request, CallContext context = default);
+    ValueTask<ResponseMessage> TestAsync(ProtoMessage request, CallContext context = default);
 }

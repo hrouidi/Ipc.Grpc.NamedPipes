@@ -6,7 +6,7 @@ namespace Ipc.Grpc.NamedPipes.Tests.ProtoContract
     public class TestServiceImplementation : ITestService
     {
         //#region Unary
-
+        public bool SimplyUnaryCalled { get; private set; }
         public async ValueTask<ResponseMessage> SimpleUnaryAsync(RequestMessage request, CallContext context = default)
         {
             await Task.Yield();
@@ -15,6 +15,15 @@ namespace Ipc.Grpc.NamedPipes.Tests.ProtoContract
             {
                 Value = request.Value,
                 Binary = request.Binary
+            };
+        }
+
+        public async ValueTask<ResponseMessage> TestAsync(ProtoMessage request, CallContext context = default)
+        {
+            await Task.Yield();
+            return new ResponseMessage
+            {
+                Value = (int)request.Kind,
             };
         }
 
@@ -159,7 +168,7 @@ namespace Ipc.Grpc.NamedPipes.Tests.ProtoContract
         //#region Tests heplers
         //public Exception ExceptionToThrow { get; set; } = new InvalidOperationException("Test exception");
 
-        public bool SimplyUnaryCalled { get; private set; }
+
 
         //public IServerStreamWriter<ResponseMessage> ServerStream { get; private set; }
 

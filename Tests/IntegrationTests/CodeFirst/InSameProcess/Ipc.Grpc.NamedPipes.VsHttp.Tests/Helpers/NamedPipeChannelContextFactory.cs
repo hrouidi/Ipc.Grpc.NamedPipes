@@ -1,6 +1,5 @@
 ﻿using System;
 using Ipc.Grpc.NamedPipes.Tests.ProtoContract;
-using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers.Extensions;
 using ProtoBuf.Grpc;
 using ProtoBuf.Grpc.Client;
 
@@ -18,7 +17,8 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers
 
             var impl = new TestServiceImplementation();
             var server = new NamedPipeServer(_pipeName, options);
-            server.Bind<ITestService>(impl);
+            NativeMarshaller.Setup();
+            server.ServiceBinder.AddCodeFirst(impl);
             server.Start();
             return new ChannelContext
             {
@@ -36,6 +36,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers
         public override ITestService CreateClient()
         {
             var channel = new NamedPipeChannel(_pipeName, new NamedPipeChannelOptions { ConnectionTimeout = _connectionTimeout });
+            NativeMarshaller.Setup();
             return channel.CreateGrpcService<ITestService>();
         }
 

@@ -19,7 +19,8 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
 
         [Test, Timeout(TestTimeout)]
         [TestCaseSource(typeof(MultiChannelSource))]
-        public async Task AsyncCallTest(ChannelContextFactory factory)
+        //public async Task AsyncCallTest(ChannelContextFactory factory)
+        public async Task AsyncCallTest(NamedPipeChannelContextFactory factory)
         {
             using ChannelContext ctx = factory.Create();
             ResponseMessage response = await ctx.Client.SimpleUnaryAsync(new RequestMessage { Value = 123 });
