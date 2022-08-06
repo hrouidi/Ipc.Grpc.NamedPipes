@@ -14,13 +14,13 @@ namespace Ipc.Grpc.SharedMemory
         private readonly IMemoryOwner<byte> _frameHeaderOwner;
         private readonly Memory<byte> _frameHeaderBytes;
         private readonly PipeStream _pipeStream;
-        private readonly SharedMemory _sharedMemory;
+        private readonly MainSharedMemory _mainSharedMemory;
 
         private readonly string _remote;//Debug only
 
-        public SharedMemoryTransport(SharedMemory sharedMemory)
+        public SharedMemoryTransport(MainSharedMemory mainSharedMemory)
         {
-            _sharedMemory = sharedMemory;
+            _mainSharedMemory = mainSharedMemory;
             _pipeStream = null;
             _remote = _pipeStream is NamedPipeClientStream ? "Server" : "Client";
             _frameHeaderOwner = MemoryPool<byte>.Shared.Rent(FrameHeader.Size);
@@ -60,14 +60,12 @@ namespace Ipc.Grpc.SharedMemory
 
         public async ValueTask SendFrame<TPayload>(MessageInfo<TPayload> message, CancellationToken token = default) where TPayload : class
         {
-            using MemorySerializationContext serializationContext = new(message.Message);
+            using SharedMemorySerializationContext serializationContext = new(message.Message);
             message.PayloadSerializer(message.Payload, serializationContext);
 
             Memory<byte> frameBytes = serializationContext.Bytes;
-
-            Memory<byte> headerBytes = frameBytes.Slice(0, FrameHeader.Size);
-            FrameHeader.Write(headerBytes.Span, serializationContext.MessageSize, serializationContext.PayloadSize);
-
+            //TODO : write guid & size in main shared memory
+            
             await _pipeStream.WriteAsync(frameBytes, token).ConfigureAwait(false);
         }
 

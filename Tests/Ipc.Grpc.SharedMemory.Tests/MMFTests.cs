@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Ipc.Grpc.SharedMemory.Helpers;
@@ -12,31 +13,28 @@ namespace Ipc.Grpc.SharedMemory.Tests;
 public class MmfTests
 {
     [Test]
-    public async Task MmfPocTest()
+    public void MmfPocTest()
     {
-        Semaphore sem = new(0, 100, "test0", out bool isNew);
-        Mutex mutex = new(true, "test1");
-        EventWaitHandle ewh = new(true, EventResetMode.AutoReset, "test2");
+        //Semaphore sem = new(0, 100, "test0", out bool isNew);
+        //Mutex mutex = new(true, "test1");
+        //EventWaitHandle ewh = new(true, EventResetMode.AutoReset, "test2");
 
-        using var mmf = MemoryMappedFile.CreateNew("test", 1024 * 1024 * 1024); // MemoryMappedFileAccess.Write, MemoryMappedFileOptions.None, System.IO.HandleInheritability.Inheritable);
+        Span<byte> span1;
+
+        using MemoryMappedFile mmf = MemoryMappedFile.CreateNew("test", 1024 * 1024 * 1024); // MemoryMappedFileAccess.Write, MemoryMappedFileOptions.None, System.IO.HandleInheritability.Inheritable);
         using MemoryMappedViewAccessor accessor = mmf.CreateViewAccessor();
-        var buffer1 = new byte[1024];
-        for (int i = 0; i < 1024 * 1024; i++)
-        {
-            Random.Shared.NextBytes(buffer1);
-            accessor.WriteArray(0, buffer1, 0, 1024);
-            //sem.Release();
-        }
+        span1 = accessor.GetSpan();
+        RandomNumberGenerator.Fill(span1);
 
-        using var mmf2 = MemoryMappedFile.OpenExisting("test");
-        using MemoryMappedViewAccessor accessor2 = mmf.CreateViewAccessor();
-        //var buffer = new byte[1024];
-        //int count = accessor.ReadArray(0, buffer, 0, 1024);
+        //accessor.Dispose();
 
-        IMemoryOwner<byte> owner = MemoryPool<byte>.Shared.Rent(1024);
-        Memory<byte> messageBytes = owner.Memory[..1024];
-        var ret = await sem.WaitAsync(TimeSpan.FromSeconds(10));
-        int cpt2 = await accessor2.ReadAsync(0, messageBytes);
+        using MemoryMappedFile mmf2 = MemoryMappedFile.OpenExisting("test");
+        mmf.Dispose();
+        accessor.Dispose();
+        using MemoryMappedViewAccessor accessor2 = mmf2.CreateViewAccessor();
+        var span2 = accessor2.GetSpan();
+
+        Assert.That(span1.SequenceEqual(span2));
     }
 
 

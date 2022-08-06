@@ -20,8 +20,8 @@ public class TransportTests
         var expectedRequest = fixture.Create<Message>();
         var expectedResponse = fixture.Create<Message>();
 
-        using var clientTransport = new SharedMemoryTransport(new SharedMemory.SharedMemory("test"));
-        using var serverTransport = new SharedMemoryTransport(new SharedMemory.SharedMemory("test"));
+        using var clientTransport = new SharedMemoryTransport(new MainSharedMemory("test"));
+        using var serverTransport = new SharedMemoryTransport(new MainSharedMemory("test"));
 
         //Act
         var readRequestTask = serverTransport.ReadFrame();
@@ -49,8 +49,8 @@ public class TransportTests
         var expectedResponse = fixture.Create<Message>();
         string expectedResponsePayload = "expectedResponsePayload";
 
-        using var clientTransport = new SharedMemoryTransport(new SharedMemory.SharedMemory("test"));
-        using var serverTransport = new SharedMemoryTransport(new SharedMemory.SharedMemory("test"));
+        using var clientTransport = new SharedMemoryTransport(new MainSharedMemory("test"));
+        using var serverTransport = new SharedMemoryTransport(new MainSharedMemory("test"));
 
         //Act
         var readRequestTask = serverTransport.ReadFrame();

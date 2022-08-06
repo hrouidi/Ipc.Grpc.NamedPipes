@@ -4,11 +4,11 @@ using Grpc.Core;
 namespace Ipc.Grpc.SharedMemory.Serialization
 {
 
-    internal class MemoryDeserializationContext : DeserializationContext
+    internal class SharedMemoryDeserializationContext : DeserializationContext
     {
         private readonly Memory<byte> _bytes;
 
-        public MemoryDeserializationContext(Memory<byte> bytes)
+        public SharedMemoryDeserializationContext(Memory<byte> bytes)
         {
             _bytes = bytes;
             PayloadLength = _bytes.Length;

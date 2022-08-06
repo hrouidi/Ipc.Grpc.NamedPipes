@@ -4,12 +4,26 @@ namespace Ipc.Grpc.SharedMemory.Helpers;
 
 public static class WaitHandleExtensions
 {
+
+    public static async ValueTask WaitAsync(this WaitHandle handle, CancellationToken token = default)
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        using (new ThreadPoolRegistration(handle, tcs))
+        await using (token.Register(OnCancellationTokenCanceled, tcs, useSynchronizationContext: false))
+            await tcs.Task.ConfigureAwait(false);
+    }
+
     public static async ValueTask<bool> WaitAsync(this WaitHandle handle, TimeSpan timeout, CancellationToken token = default)
     {
         var tcs = new TaskCompletionSource<bool>();
         using (new ThreadPoolRegistration(handle, timeout, tcs))
-        await using (token.Register(static state => ((TaskCompletionSource<bool>)state!).TrySetCanceled(), tcs, useSynchronizationContext: false))
+        await using (token.Register(OnCancellationTokenCanceled, tcs, useSynchronizationContext: false))
             return await tcs.Task.ConfigureAwait(false);
+    }
+
+    private static void OnCancellationTokenCanceled(object? state)
+    {
+        ((TaskCompletionSource<bool>)state!).TrySetCanceled();
     }
 
     private readonly struct ThreadPoolRegistration : IDisposable
@@ -18,36 +32,18 @@ public static class WaitHandleExtensions
 
         public ThreadPoolRegistration(WaitHandle handle, TimeSpan timeout, TaskCompletionSource<bool> tcs)
         {
-            _registeredWaitHandle = ThreadPool.RegisterWaitForSingleObject(handle, static (state, timedOut) => ((TaskCompletionSource<bool>)state!).TrySetResult(!timedOut), tcs, timeout, executeOnlyOnce: true);
+            _registeredWaitHandle = ThreadPool.RegisterWaitForSingleObject(handle, WaitOrTimerCallback, tcs, timeout, executeOnlyOnce: true);
+        }
+        public ThreadPoolRegistration(WaitHandle handle, TaskCompletionSource<bool> tcs)
+        {
+            _registeredWaitHandle = ThreadPool.RegisterWaitForSingleObject(handle, WaitOrTimerCallback, tcs, -1, executeOnlyOnce: true);
         }
 
         void IDisposable.Dispose() => _registeredWaitHandle.Unregister(null);
-    }
 
-    public struct ManualResetValueTaskSource<T> : IValueTaskSource<T>, IValueTaskSource
-    {
-        private ManualResetValueTaskSourceCore<T> _logic; // mutable struct; do not make this readonly
-
-        public bool RunContinuationsAsynchronously
+        private static void WaitOrTimerCallback(object? state, bool timedOut)
         {
-            get => _logic.RunContinuationsAsynchronously;
-            set => _logic.RunContinuationsAsynchronously = value;
+            ((TaskCompletionSource<bool>)state!).TrySetResult(timedOut == false);
         }
-
-        public void Reset() => _logic.Reset();
-        public void SetResult(T result) => _logic.SetResult(result);
-        public void SetException(Exception error) => _logic.SetException(error);
-
-        void IValueTaskSource.GetResult(short token) => _logic.GetResult(token);
-        ValueTaskSourceStatus IValueTaskSource.GetStatus(short token) => _logic.GetStatus(token);
-
-        void IValueTaskSource.OnCompleted(Action<object?> continuation, object? state, short token,
-            ValueTaskSourceOnCompletedFlags flags) => _logic.OnCompleted(continuation, state, token, flags);
-
-        T IValueTaskSource<T>.GetResult(short token) => _logic.GetResult(token);
-        ValueTaskSourceStatus IValueTaskSource<T>.GetStatus(short token) => _logic.GetStatus(token);
-
-        void IValueTaskSource<T>.OnCompleted(Action<object?> continuation, object? state, short token,
-            ValueTaskSourceOnCompletedFlags flags) => _logic.OnCompleted(continuation, state, token, flags);
     }
 }
