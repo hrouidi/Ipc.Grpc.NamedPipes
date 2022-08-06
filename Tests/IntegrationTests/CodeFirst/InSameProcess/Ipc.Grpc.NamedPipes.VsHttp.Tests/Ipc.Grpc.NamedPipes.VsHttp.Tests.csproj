@@ -11,6 +11,7 @@
 
 		<PackageReference Include="GrpcDotNetNamedPipes" Version="1.4.4" />
 		<PackageReference Include="JetBrains.DotMemoryUnit" Version="3.2.20220510" />
+		<PackageReference Include="protobuf-net.Grpc" Version="1.0.171" />
 		<PackageReference Include="protobuf-net.Grpc.Native" Version="1.0.152" />
 		<PackageReference Include="System.IO.Pipes.AccessControl" Version="5.0.0" />
 

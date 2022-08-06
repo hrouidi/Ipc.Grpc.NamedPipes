@@ -6,13 +6,25 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Google.Protobuf" Version="3.21.1" />
-      <PackageReference Include="Grpc.Core.Api" Version="2.46.3" />
-      <PackageReference Include="protobuf-net.Grpc" Version="1.0.152" />
+      <!--<PackageReference Include="Grpc.Core.Api" Version="2.47.0" />-->
+      <PackageReference Include="protobuf-net.Grpc" Version="1.0.171" />
+      <PackageReference Include="Grpc.Tools" Version="2.47.0" PrivateAssets="All" />
+      
+      <PackageReference Include="Google.Protobuf" Version="3.21.4" />
     </ItemGroup>
 
     <ItemGroup>
         <Protobuf Include="**/*.proto" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="Message.proto" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Protobuf Update="Message.proto">
+        <Access>Public</Access>
+      </Protobuf>
     </ItemGroup>
 
 </Project>

@@ -24,7 +24,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly CancellationTokenSource _combinedCts;
 
         private Message? _unaryRequestMessage;
-        
+
         private long _isCompleted; //1 :true | 0 : false
         private bool IsCompleted
         {
@@ -173,24 +173,29 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
             else
             {
-                (StatusCode status, string detail) = GetStatus();
+                StatusCode status = GetStatus(out string detail);
 
                 Message message = MessageBuilder.BuildReply(CallContext.ResponseTrailers, status, detail);
                 await SendReplyStatus(message).ConfigureAwait(false); //not cancellable send
             }
 
-            (StatusCode status, string detail) GetStatus()
+            StatusCode GetStatus(out string detail)
             {
+                detail = string.Empty;
                 if (Deadline is { IsExpired: true })
-                    return (StatusCode.DeadlineExceeded, "");
+                    return StatusCode.DeadlineExceeded;
 
                 if (_callContextCts.IsCancellationRequested)
-                    return (StatusCode.Cancelled, "");
+                    return StatusCode.Cancelled;
 
                 if (ex is RpcException rpcException)
-                    return (rpcException.StatusCode, rpcException.Status.Detail);
+                {
+                    detail = rpcException.Status.Detail;
+                    return rpcException.StatusCode;
+                }
 
-                return (StatusCode.Unknown, $"Exception was thrown by handler: {ex.Message}");
+                detail = $"Exception was thrown by handler: {ex.Message}";
+                return StatusCode.Unknown;
             }
         }
 
