@@ -5,19 +5,8 @@ using Ipc.Grpc.SharedMemory.Helpers;
 
 namespace Ipc.Grpc.SharedMemory
 {
-    public interface IMainMemory : IDisposable
+    public class MainSharedMemory2 : IMainMemory
     {
-        ValueTask WriteAsync(Guid guid, int size, CancellationToken token = default);
-        ValueTask<(Guid guid, int size)> ReadAsync(CancellationToken token = default);
-
-        void WriteSync(Guid guid, int size);
-
-        (Guid guid, int size) ReadSync();
-    }
-
-    public class MainSharedMemory : IMainMemory
-    {
-        private const string _readSemaphorePrefix = "AAD369E4-23A8-43AE-AF9F-8AD09528CF7F";
         private const string _writeSemaphorePrefix = "B1D8B82B-3F20-496A-9AB1-4CC3D684B4A5";
 
         private readonly MemoryMappedFile _mmf;
@@ -25,11 +14,9 @@ namespace Ipc.Grpc.SharedMemory
 
 
         private readonly Semaphore _writeSemaphore;
-        private readonly Semaphore _readSemaphore;
 
-        public MainSharedMemory(string name)
+        public MainSharedMemory2(string name)
         {
-            _readSemaphore = new Semaphore(0, int.MaxValue, $"{_readSemaphorePrefix}{name}", out bool isNewRead);
             _writeSemaphore = new Semaphore(1, int.MaxValue, $"{_writeSemaphorePrefix}{name}", out bool isNewWrite);
 
             _mmf = MemoryMappedFile.CreateOrOpen(name, 4096);
@@ -38,31 +25,30 @@ namespace Ipc.Grpc.SharedMemory
 
         public async ValueTask WriteAsync(Guid guid, int size, CancellationToken token = default)
         {
-            _writeSemaphore.WaitOne();
-            //await _writeSemaphore.WaitAsync(token).ConfigureAwait(false);
+            //_writeSemaphore.WaitOne();
+            await _writeSemaphore.WaitAsync(token).ConfigureAwait(false);
             Write(guid, size);
-            _readSemaphore.Release();
+            _writeSemaphore.Release();
         }
 
         public void WriteSync(Guid guid, int size)
         {
             _writeSemaphore.WaitOne();
             Write(guid, size);
-            _readSemaphore.Release();
+            _writeSemaphore.Release();
         }
 
         public async ValueTask<(Guid guid, int size)> ReadAsync(CancellationToken token = default)
         {
-            //await _readSemaphore.WaitAsync(token).ConfigureAwait(false);
-            _readSemaphore.WaitOne();
+            await _writeSemaphore.WaitAsync(token).ConfigureAwait(false);
+            //_readSemaphore.WaitOne();
             (Guid guid, int size) ret = Read();
             _writeSemaphore.Release();
             return ret;
         }
-        
         public (Guid guid, int size) ReadSync()
         {
-            _readSemaphore.WaitOne();
+            _writeSemaphore.WaitOne();
             (Guid guid, int size) ret = Read();
             _writeSemaphore.Release();
             return ret;
@@ -87,7 +73,6 @@ namespace Ipc.Grpc.SharedMemory
         {
             _accessor.Dispose();
             _mmf.Dispose();
-            _readSemaphore.Dispose();
             _writeSemaphore.Dispose();
         }
     }

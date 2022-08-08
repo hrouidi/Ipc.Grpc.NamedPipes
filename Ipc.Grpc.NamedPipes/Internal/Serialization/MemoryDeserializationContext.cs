@@ -5,7 +5,7 @@ using Grpc.Core;
 namespace Ipc.Grpc.NamedPipes.Internal
 {
 
-    internal class MemoryDeserializationContext : DeserializationContext
+    public class MemoryDeserializationContext : DeserializationContext
     {
         private readonly Memory<byte> _bytes;
 
@@ -13,6 +13,11 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             _bytes = bytes;
             PayloadLength = _bytes.Length;
+        }
+
+        public Span<byte> GetSpan()
+        {
+            return _bytes.Span;
         }
 
         public override int PayloadLength { get; }

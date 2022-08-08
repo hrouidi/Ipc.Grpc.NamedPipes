@@ -27,63 +27,63 @@ namespace Ipc.Grpc.SharedMemory
             _frameHeaderBytes = _frameHeaderOwner.Memory.Slice(0, FrameHeader.Size);
         }
 
-        public async ValueTask<Message> ReadFrame(CancellationToken token = default)
-        {
-            int readBytes = await _pipeStream.ReadAsync(_frameHeaderBytes, token)
-                                             .ConfigureAwait(false);
-            if (readBytes == 0)
-                return Message.Eof;
+        //public async ValueTask<Message> ReadFrame(CancellationToken token = default)
+        //{
+        //    int readBytes = await _pipeStream.ReadAsync(_frameHeaderBytes, token)
+        //                                     .ConfigureAwait(false);
+        //    if (readBytes == 0)
+        //        return Message.Eof;
 
-            FrameHeader header = FrameHeader.FromSpan(_frameHeaderBytes.Span);
+        //    FrameHeader header = FrameHeader.FromSpan(_frameHeaderBytes.Span);
 
-            IMemoryOwner<byte> owner = MemoryPool<byte>.Shared.Rent(header.TotalSize);
-            Memory<byte> messageBytes = owner.Memory.Slice(0, header.TotalSize);
+        //    IMemoryOwner<byte> owner = MemoryPool<byte>.Shared.Rent(header.TotalSize);
+        //    Memory<byte> messageBytes = owner.Memory.Slice(0, header.TotalSize);
 
-            readBytes = await _pipeStream.ReadAsync(messageBytes, token)
-                                         .ConfigureAwait(false);
-            if (readBytes == 0)
-                return Message.Eof;
+        //    readBytes = await _pipeStream.ReadAsync(messageBytes, token)
+        //                                 .ConfigureAwait(false);
+        //    if (readBytes == 0)
+        //        return Message.Eof;
 
-            if (readBytes != header.TotalSize)
-            {
-                Debug.Assert(readBytes == header.TotalSize, $"{_remote}  is laying: read bytes count:{readBytes}/{header.TotalSize}: buffer= {messageBytes.ToArray().Select(x => x.ToString()).Aggregate("", (x, y) => $"{x}|{y}")}");
-            }
+        //    if (readBytes != header.TotalSize)
+        //    {
+        //        Debug.Assert(readBytes == header.TotalSize, $"{_remote}  is laying: read bytes count:{readBytes}/{header.TotalSize}: buffer= {messageBytes.ToArray().Select(x => x.ToString()).Aggregate("", (x, y) => $"{x}|{y}")}");
+        //    }
 
-            Debug.Assert(_pipeStream.IsMessageComplete, "Unexpected message :too long!");
+        //    Debug.Assert(_pipeStream.IsMessageComplete, "Unexpected message :too long!");
 
-            Memory<byte> payloadBytes = messageBytes.Slice(header.MessageSize);
+        //    Memory<byte> payloadBytes = messageBytes.Slice(header.MessageSize);
 
-            Message message = new(payloadBytes, owner);
-            message.MergeFrom(messageBytes.Span.Slice(0, header.MessageSize));
-            return message;
-        }
+        //    Message message = new(payloadBytes, owner);
+        //    message.MergeFrom(messageBytes.Span.Slice(0, header.MessageSize));
+        //    return message;
+        //}
 
-        public async ValueTask SendFrame<TPayload>(MessageInfo<TPayload> message, CancellationToken token = default) where TPayload : class
-        {
-            using SharedMemorySerializationContext serializationContext = new(message.Message);
-            message.PayloadSerializer(message.Payload, serializationContext);
+        //public async ValueTask SendFrame<TPayload>(MessageInfo<TPayload> message, CancellationToken token = default) where TPayload : class
+        //{
+        //    using SharedMemorySerializationContext serializationContext = new(message.Message);
+        //    message.PayloadSerializer(message.Payload, serializationContext);
 
-            Memory<byte> frameBytes = serializationContext.Bytes;
-            //TODO : write guid & size in main shared memory
+        //    Memory<byte> frameBytes = serializationContext.Bytes;
+        //    //TODO : write guid & size in main shared memory
             
-            await _pipeStream.WriteAsync(frameBytes, token).ConfigureAwait(false);
-        }
+        //    await _pipeStream.WriteAsync(frameBytes, token).ConfigureAwait(false);
+        //}
 
-        public async ValueTask SendFrame(Message message, CancellationToken token = default)
-        {
-            var msgSize = message.CalculateSize();
+        //public async ValueTask SendFrame(Message message, CancellationToken token = default)
+        //{
+        //    var msgSize = message.CalculateSize();
 
-            using var memoryOwner = MemoryPool<byte>.Shared.Rent(FrameHeader.Size + msgSize);
-            Memory<byte> frameBytes = memoryOwner.Memory.Slice(0, FrameHeader.Size + msgSize);
-            //#1 : frame header
-            Memory<byte> headerBytes = frameBytes.Slice(0, FrameHeader.Size);
-            FrameHeader.Write(headerBytes.Span, msgSize, 0);
-            //#2 : Message
-            Memory<byte> messageBytes = frameBytes.Slice(FrameHeader.Size);
-            message.WriteTo(messageBytes.Span);
+        //    using var memoryOwner = MemoryPool<byte>.Shared.Rent(FrameHeader.Size + msgSize);
+        //    Memory<byte> frameBytes = memoryOwner.Memory.Slice(0, FrameHeader.Size + msgSize);
+        //    //#1 : frame header
+        //    Memory<byte> headerBytes = frameBytes.Slice(0, FrameHeader.Size);
+        //    FrameHeader.Write(headerBytes.Span, msgSize, 0);
+        //    //#2 : Message
+        //    Memory<byte> messageBytes = frameBytes.Slice(FrameHeader.Size);
+        //    message.WriteTo(messageBytes.Span);
 
-            await _pipeStream.WriteAsync(frameBytes, token).ConfigureAwait(false);
-        }
+        //    await _pipeStream.WriteAsync(frameBytes, token).ConfigureAwait(false);
+        //}
 
         public void Dispose()
         {

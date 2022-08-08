@@ -9,17 +9,17 @@ public static class WaitHandleExtensions
     {
         var tcs = new TaskCompletionSource<bool>();
         using (new ThreadPoolRegistration(handle, tcs))
-        await using (token.Register(OnCancellationTokenCanceled, tcs, useSynchronizationContext: false))
+        using (token.Register(OnCancellationTokenCanceled, tcs, useSynchronizationContext: false))
             await tcs.Task.ConfigureAwait(false);
     }
 
-    public static async ValueTask<bool> WaitAsync(this WaitHandle handle, TimeSpan timeout, CancellationToken token = default)
-    {
-        var tcs = new TaskCompletionSource<bool>();
-        using (new ThreadPoolRegistration(handle, timeout, tcs))
-        await using (token.Register(OnCancellationTokenCanceled, tcs, useSynchronizationContext: false))
-            return await tcs.Task.ConfigureAwait(false);
-    }
+    //public static async ValueTask<bool> WaitAsync(this WaitHandle handle, TimeSpan timeout, CancellationToken token = default)
+    //{
+    //    var tcs = new TaskCompletionSource<bool>();
+    //    using (new ThreadPoolRegistration(handle, timeout, tcs))
+    //    await using (token.Register(OnCancellationTokenCanceled, tcs, useSynchronizationContext: false))
+    //        return await tcs.Task.ConfigureAwait(false);
+    //}
 
     private static void OnCancellationTokenCanceled(object? state)
     {

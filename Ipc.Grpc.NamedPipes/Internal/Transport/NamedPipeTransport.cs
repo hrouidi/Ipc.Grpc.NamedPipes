@@ -12,7 +12,15 @@ using Ipc.Grpc.NamedPipes.Internal.Helpers;
 
 namespace Ipc.Grpc.NamedPipes.Internal.Transport
 {
-    internal class NamedPipeTransport : IDisposable
+    internal interface INamedPipeTransport
+    {
+        ValueTask<Message> ReadFrame(CancellationToken token = default);
+        ValueTask SendFrame<TPayload>(MessageInfo<TPayload> message, CancellationToken token = default) where TPayload : class;
+        ValueTask SendFrame(Message message, CancellationToken token = default);
+        void Dispose();
+    }
+
+    internal class NamedPipeTransport : IDisposable, INamedPipeTransport
     {
         private readonly IMemoryOwner<byte> _frameHeaderOwner;
         private readonly Memory<byte> _frameHeaderBytes;

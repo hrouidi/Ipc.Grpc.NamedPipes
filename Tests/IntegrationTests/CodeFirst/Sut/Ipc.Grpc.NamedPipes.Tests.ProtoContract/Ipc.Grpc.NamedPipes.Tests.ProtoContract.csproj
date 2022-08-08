@@ -22,6 +22,10 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\..\..\..\..\Ipc.Grpc.NamedPipes\Ipc.Grpc.NamedPipes.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
       <Protobuf Update="Message.proto">
         <Access>Public</Access>
       </Protobuf>

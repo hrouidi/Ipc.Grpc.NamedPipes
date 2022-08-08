@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -75,6 +76,7 @@ public class MainSharedMemoryTests
     [TestCase(10_000)]
     public async Task ReadAsyncWriteAsyncSequentialTest(int messagesCount)
     {
+        //var stopwatch = Stopwatch.StartNew();
         using MainSharedMemory sharedMemory1 = new("Test");
         using MainSharedMemory sharedMemory2 = new("Test");
 
@@ -86,9 +88,11 @@ public class MainSharedMemoryTests
         {
             await sharedMemory1.WriteAsync(guid, size);
             (Guid guid2, int size2) = await sharedMemory2.ReadAsync();
-            Assert.That(guid2, Is.EqualTo(guid));
-            Assert.That(size2, Is.EqualTo(size));
+            //Assert.That(guid2, Is.EqualTo(guid));
+            //Assert.That(size2, Is.EqualTo(size));
         }
+        //stopwatch.Stop();
+        //Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
     }
 
     [Test]

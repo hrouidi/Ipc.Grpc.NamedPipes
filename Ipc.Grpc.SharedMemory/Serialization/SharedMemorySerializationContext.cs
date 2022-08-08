@@ -83,6 +83,8 @@ namespace Ipc.Grpc.SharedMemory.Serialization
             MemoryOwner = MemoryPool<byte>.Shared.Rent(padding + _messageSize + _payloadSize);
             Bytes = MemoryOwner.Memory.Slice(0, padding + _messageSize + _payloadSize);
             //#1 : will be set later in send method
+            Memory<byte> headerBytes = Bytes.Slice(0, SharedMemoryTransport.FrameHeader.Size);
+            SharedMemoryTransport.FrameHeader.Write(headerBytes.Span, _messageSize, _payloadSize);
 
             //#2 : Message
             Memory<byte> messageBytes = Bytes.Slice(padding, _messageSize);
@@ -93,10 +95,6 @@ namespace Ipc.Grpc.SharedMemory.Serialization
 
         public override void Complete()
         {
-            Memory<byte> frameBytes = Bytes;
-            Memory<byte> headerBytes = frameBytes.Slice(0, SharedMemoryTransport.FrameHeader.Size);
-            SharedMemoryTransport.FrameHeader.Write(headerBytes.Span, _messageSize, _payloadSize);
-
             Debug.Assert(Bytes.Length == SharedMemoryTransport.FrameHeader.Size + _messageSize + _payloadBytes.Length);
         }
 

@@ -8,25 +8,30 @@ public class NativeMarshaller
 {
     public static void Setup()
     {
-        Marshaller<ProtoMessage> request2Marshaller = Create(ProtoMessage.Parser);
+        Marshaller<ProtoMessage> request2Marshaller = ProtoMarshallerFactory<ProtoMessage>.Create();
         BinderConfiguration.Default.SetMarshaller(request2Marshaller);
     }
-    
-
-    private static Marshaller<TMessage> Create<TMessage>(MessageParser<TMessage> parser) where TMessage : IMessage<TMessage>, IBufferMessage
-    {
-        return Marshallers.Create(SerializeMessage, x => DeserializeMessage(x, parser));
-
-        static void SerializeMessage(TMessage message, SerializationContext context)
-        {
-            context.SetPayloadLength(message.CalculateSize());
-            message.WriteTo(context.GetBufferWriter());
-            context.Complete();
-        }
-
-        static T DeserializeMessage<T>(DeserializationContext context, MessageParser<T> parser) where T : IMessage<T>
-        {
-            return parser.ParseFrom(context.PayloadAsReadOnlySequence());
-        }
-    }
 }
+
+//public class MarshallerFactory<TMessage> where TMessage : IMessage<TMessage>, IBufferMessage, new()
+//{
+//    private static readonly MessageParser<TMessage> _parser = new (() => new TMessage());
+//    public static Marshaller<TMessage> Create() 
+//    {
+        
+//        return Marshallers.Create(SerializeMessage, DeserializeMessage);
+
+//        static void SerializeMessage(TMessage message, SerializationContext context)
+//        {
+//            context.SetPayloadLength(message.CalculateSize());
+//            message.WriteTo(context.GetBufferWriter());
+//            //context.Complete();
+//        }
+
+        
+//    }
+//    private static TMessage DeserializeMessage(DeserializationContext context) 
+//    {
+//        return _parser.ParseFrom(context.PayloadAsReadOnlySequence());
+//    }
+//}

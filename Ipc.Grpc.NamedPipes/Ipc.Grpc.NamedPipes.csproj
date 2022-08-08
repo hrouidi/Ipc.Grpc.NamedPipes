@@ -3,7 +3,7 @@
 	<PropertyGroup>
 		<TargetFrameworks>net461;netcoreapp3.1;netstandard2.1;netstandard2.0;net5.0-windows</TargetFrameworks>
 		<LangVersion>10</LangVersion>
-		
+		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 		<Version>0.4.0</Version>
 		<PackageVersion>0.4.0</PackageVersion>
 		<AssemblyVersion>1.0.0.0</AssemblyVersion>
@@ -37,7 +37,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Protobuf Include="**/*.proto" Access="Public" />
+		<Protobuf Include="**/*.proto" Access="Private"  />
 	</ItemGroup>
 
 	  

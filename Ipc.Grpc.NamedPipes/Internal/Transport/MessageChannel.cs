@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Google.Protobuf;
 using Grpc.Core;
 using Ipc.Grpc.NamedPipes.Internal.Helpers;
 
@@ -53,6 +54,8 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
 
         public async ValueTask<TPayload> ReadAsync<TPayload>(Deadline deadline, Func<DeserializationContext, TPayload> deserializer) where TPayload : class
         {
+            //Type type = typeof(TPayload);
+            //type.IsAssignableFrom(typeof(IMessage<TPayload>));
             ItemInfo ret = await SafeReadAsync(deadline, _connectionCancellationToken).ConfigureAwait(false);
 
             if (ret.Error != null)

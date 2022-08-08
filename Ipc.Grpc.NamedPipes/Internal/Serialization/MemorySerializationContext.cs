@@ -8,8 +8,35 @@ using Message = Ipc.Grpc.NamedPipes.Internal.Transport.Message;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
-    internal class MemorySerializationContext : SerializationContext, IDisposable
+    public class MemorySerializationContext : SerializationContext, IDisposable
     {
+        internal class MemoryBufferWriter : IBufferWriter<byte>
+        {
+            private int _position;
+
+            public Memory<byte> Stream { get; }
+
+            public MemoryBufferWriter(Memory<byte> stream)
+            {
+                Stream = stream;
+            }
+
+            public void Advance(int count)
+            {
+                _position += count;
+            }
+
+            public Memory<byte> GetMemory(int sizeHint = 0)
+            {
+                return Stream.Slice(_position);
+            }
+
+            public Span<byte> GetSpan(int sizeHint = 0)
+            {
+                return Stream.Slice(_position).Span;
+            }
+        }
+
         private readonly Message _message;
 
         private Memory<byte> _payloadBytes;
@@ -23,6 +50,11 @@ namespace Ipc.Grpc.NamedPipes.Internal
         public Memory<byte> Bytes { get; private set; }
 
         public IMemoryOwner<byte> MemoryOwner { get; private set; }
+
+        public Span<byte> GetSpan()
+        {
+            return _payloadBytes.Span;
+        }
 
         public MemorySerializationContext(Message message)
         {

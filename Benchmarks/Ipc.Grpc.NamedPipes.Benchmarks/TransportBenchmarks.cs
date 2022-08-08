@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using Ipc.Grpc.NamedPipes.Benchmarks.Helpers;
@@ -16,13 +18,19 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
     //[SimpleJob(runtimeMoniker: RuntimeMoniker.Net60)]
     public class TransportBenchmarks
     {
-        public const int Iterations = 2*1000;
+        public const int Iterations = 4 * 1_000;
 
         private PipeChannel _channel;
-        private byte[] _expectedRequestPayload;
-        private Message _expectedRequest;
+        private PipeChannel _channel2;
+
+        private List<byte[]> _expectedRequestPayloads;
+        private List<Message> _expectedRequests;
+
         private NamedPipeTransport _clientTransporter;
         private NamedPipeTransport _serverTransporter;
+
+        private NamedPipeTransport2 _clientTransporter2;
+        private NamedPipeTransport2 _serverTransporter2;
 
 
         [GlobalSetup]
@@ -34,15 +42,26 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
         public void IterationSetup()
         {
             _channel = PipeChannel.CreateRandom();
+            _channel2 = PipeChannel.CreateRandom();
 
-            _expectedRequest = new Message();
-
+            _expectedRequests = Enumerable.Range(0, Iterations)
+                                          .Select(x => new Message())
+                                          .ToList();
             Random random = new();
-            _expectedRequestPayload = new byte[100];
-            random.NextBytes(_expectedRequestPayload);
+            _expectedRequestPayloads = Enumerable.Range(0, Iterations)
+                                                 .Select(x =>
+                                                 {
+                                                     var ret = new byte[100];
+                                                     random.NextBytes(ret);
+                                                     return ret;
+                                                 })
+                                                 .ToList();
+
 
             _clientTransporter = new NamedPipeTransport(_channel.ClientStream);
+            _clientTransporter2 = new NamedPipeTransport2(_channel.ClientStream);
             _serverTransporter = new NamedPipeTransport(_channel.ServerStream);
+            _serverTransporter2 = new NamedPipeTransport2(_channel.ServerStream);
 
         }
 
@@ -51,21 +70,42 @@ namespace Ipc.Grpc.NamedPipes.Benchmarks
         public void IterationCleanup()
         {
             _channel.Dispose();
+            _channel2.Dispose();
             _clientTransporter.Dispose();
+            _clientTransporter2.Dispose();
             _serverTransporter.Dispose();
+            _serverTransporter2.Dispose();
         }
 
         [Benchmark(Baseline = true)]
-        public async Task<int> SendFrame3()
+        public async Task<List<Message>> SendFrame()
         {
-            int i = 0;
-            for (; i < Iterations; i++)
+            return await Run(_clientTransporter, _serverTransporter);
+        }
+
+        [Benchmark]
+        public async Task<List<Message>> SendFrame2()
+        {
+            return await Run(_clientTransporter2, _serverTransporter2);
+        }
+
+        private async Task<List<Message>> Run(INamedPipeTransport client, INamedPipeTransport server)
+        {
+            Task writeTask = Task.Factory.StartNew(async () =>
             {
-                var task = _serverTransporter.ReadFrame();
-                await _clientTransporter.SendFrame(_expectedRequest);
-                await task;
-            }
-            return i;
+                foreach (Message message in _expectedRequests)
+                    await client.SendFrame(message);
+            }, TaskCreationOptions.LongRunning).Unwrap();
+
+            Task<List<Message>> readTask = Task.Factory.StartNew(async () =>
+            {
+                List<Message> actualMessages = new(_expectedRequests.Count);
+                for (int i = 0; i < _expectedRequests.Count; i++)
+                    actualMessages.Add(await server.ReadFrame());
+                return actualMessages;
+            }, TaskCreationOptions.LongRunning).Unwrap();
+            await Task.WhenAll(writeTask, readTask);
+            return readTask.Result;
         }
     }
 }

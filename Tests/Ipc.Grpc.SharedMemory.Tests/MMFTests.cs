@@ -58,7 +58,7 @@ public class MmfTests
         //var ret1 = await semaphore.WaitAsync(TimeSpan.FromSeconds(10));
         //var ret2 = await semaphore.WaitAsync(TimeSpan.FromSeconds(10));
 
-        var ret3 = await semaphore.WaitAsync(TimeSpan.FromSeconds(10));
+        //var ret3 = await semaphore.WaitAsync(TimeSpan.FromSeconds(10));
 
     }
 
