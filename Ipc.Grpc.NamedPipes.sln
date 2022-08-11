@@ -36,6 +36,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Remote", "Remote", "{1F0539A9-48EA-422F-A863-33BCD54227ED}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Ipc.Grpc.NamedPipes.Remote.Tests", "Tests\IntegrationTests\Remote\Ipc.Grpc.NamedPipes.Remote.Tests.csproj", "{A9B16D0D-CCE0-4867-8811-8EF479ACE4BA}"
+	ProjectSection(ProjectDependencies) = postProject
+		{7E030205-8C93-4B82-8612-61BEF47D020B} = {7E030205-8C93-4B82-8612-61BEF47D020B}
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "InSameProcess", "InSameProcess", "{38EC7FFD-37E7-44CF-A817-7FEAF92AB5A9}"
 EndProject

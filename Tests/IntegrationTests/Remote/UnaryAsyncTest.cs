@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
@@ -12,7 +13,14 @@ namespace Ipc.Grpc.NamedPipes.Remote.Tests
     public class UnaryAsyncTest
     {
         public const int TestTimeout = 10 * 1000;
-        public const string ExeFile = @"Ipc.Grpc.NamedPipes.Tests.Server.exe";
+        public readonly string ExeFile;
+
+        public UnaryAsyncTest()
+        {
+            var tmp = Directory.GetCurrentDirectory();
+            ExeFile = Path.Combine(Directory.GetCurrentDirectory(), @"../../../../Ipc.Grpc.NamedPipes.Tests.Server/bin/Debug/Ipc.Grpc.NamedPipes.Tests.Server.exe");
+            var ret = File.Exists(ExeFile);
+        }
 
         [Test, Timeout(TestTimeout)]
         [TestCase(1_000)]
@@ -66,9 +74,9 @@ namespace Ipc.Grpc.NamedPipes.Remote.Tests
         public async Task Channels_Parallel_Performance(int iterationCpt)
         {
             string pipeName = Guid.NewGuid().ToString();
-            using var manager = new RemoteProcessManager(ExeFile, pipeName);
+            using var manager = new RemoteProcessManager(ExeFile, pipeName,1000);
             var stopwatch = Stopwatch.StartNew();
-            var tasks = new Task[1_000];
+            var tasks = new Task[iterationCpt];
             for (int i = 0; i < tasks.Length; i++)
             {
                 TestService.TestServiceClient client = RemoteChannelFactory.Create(pipeName);
@@ -86,7 +94,7 @@ namespace Ipc.Grpc.NamedPipes.Remote.Tests
         {
             using RemoteChannel remoteChannel = RemoteChannelFactory.CreateNamedPipe(ExeFile);
             var stopwatch = Stopwatch.StartNew();
-            var tasks = new Task[1_000];
+            var tasks = new Task[iterationCpt];
             for (int i = 0; i < tasks.Length; i++)
             {
                 tasks[i] = remoteChannel.Client.SimpleUnaryAsync(new RequestMessage()).ResponseAsync;
@@ -101,7 +109,7 @@ namespace Ipc.Grpc.NamedPipes.Remote.Tests
         [TestCase(100 * 1024 * 1024)]
         [TestCase(300 * 1024 * 1024)]
         [TestCase(1024 * 1024 * 1024)]
-        [TestCase(2024 * 1024 * 1024)]
+        //[TestCase(2024 * 1024 * 1024)]
         public async Task LargePayloadPerformance(int payloadSize)
         {
             using RemoteChannel remoteChannel = RemoteChannelFactory.CreateNamedPipe(ExeFile);
@@ -109,6 +117,7 @@ namespace Ipc.Grpc.NamedPipes.Remote.Tests
             var bytes = new byte[payloadSize];
             ByteString byteString = UnsafeByteOperations.UnsafeWrap(bytes);
             ResponseMessage ret = null;
+            //await Task.Delay(ProcessStartupDelay);
             var stopwatch = Stopwatch.StartNew();
             //for (int i = 0; i < 1000; i++)
             ret = await remoteChannel.Client.SimpleUnaryAsync(new RequestMessage { Binary = byteString });

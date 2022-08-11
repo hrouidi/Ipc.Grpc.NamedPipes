@@ -28,49 +28,26 @@ namespace Ipc.Grpc.NamedPipes
             return this;
         }
 
-        public void Run()
-        {
-            _listener.Start();
-            _listener.ListeningTask
-                     .GetAwaiter()
-                     .GetResult();
-        }
+        /// <summary>
+        /// Start server listening and yield control to the caller
+        /// </summary>
+        public Task StartAsync() => _listener.StartAsync();
+        
+        /// <summary>
+        /// Start server listening loop , will yield when gracefully shutdown or dispose
+        /// </summary>
+        /// <returns></returns>
+        public Task RunAsync() => _listener.RunAsync();
+        
+        /// <summary>
+        /// Gracefully shutdown the server, will wait for all pending connections to complete
+        /// </summary>
+        public Task ShutdownAsync() => _listener.ShutdownAsync();
 
-        public Task RunAsync()
-        {
-            _listener.Start();
-            return _listener.ListeningTask;
-        }
-
-        public void Start()
-        {
-            _listener.Start();
-        }
-
-        public ValueTask StartAsync()
-        {
-            return _listener.StartAsync();
-        }
-
-        public void Shutdown()
-        {
-            _listener.Stop();
-        }
-
-        public ValueTask ShutdownAsync()
-        {
-            return _listener.StopAsync();
-        }
-
-        public void Kill()
-        {
-            _listener.Dispose();
-        }
-
-        public void Dispose()
-        {
-            _listener.Dispose();
-        }
+        /// <summary>
+        /// Stop the server and cancel all pending connections handlers
+        /// </summary>
+        public void Dispose() => _listener.Dispose();
 
         private class NamedPipesServiceBinder : ServiceBinderBase
         {

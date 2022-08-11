@@ -53,7 +53,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         public void Dispose()
         {
-            //_pipeStream?.Dispose();
+            _pipeStream?.Dispose();
             _transport?.Dispose();
             _cancelRemoteRegistration.Dispose();
             _combinedCts.Dispose();
@@ -152,7 +152,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 while (true)
                 {
                     Message message = await _transport.ReadFrame(_combinedToken).ConfigureAwait(false);
-                    if (message == Message.Eof)
+                    if (message.IsEof)// Should never happen except when server crashes
                     {
                         Interlocked.Exchange(ref _isInServerSide, 0);
                         _receptionChannel.SetError(new RpcException(new Status(StatusCode.DataLoss, "Server close current connection")));

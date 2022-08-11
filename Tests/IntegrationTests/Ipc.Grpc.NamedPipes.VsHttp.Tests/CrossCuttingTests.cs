@@ -18,10 +18,7 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests
         {
             var impl = new TestServiceImplementation();
             var server = new NamedPipeServer("def");
-            IdleTimeInterceptor idleTimeInterceptor = new(TimeSpan.FromSeconds(5), () =>
-            {
-                server.Shutdown();
-            });
+            IdleTimeInterceptor idleTimeInterceptor = new(TimeSpan.FromSeconds(5), server.ShutdownAsync);
 
             server.AddInterceptor(idleTimeInterceptor);
             TestService.BindService(server.ServiceBinder, impl);

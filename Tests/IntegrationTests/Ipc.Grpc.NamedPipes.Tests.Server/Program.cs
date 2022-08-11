@@ -9,18 +9,19 @@ public class Program
 {
     public static async Task Main(string[] args)
     {
+        //await Task.Delay(10_000);
         string pipeName = GetPipeName(args);
         var impl = new TestServiceImplementation();
 
         var server = new NamedPipeServer(pipeName);
-        
-        IdleTimeInterceptor idleTimeInterceptor = new(TimeSpan.FromMinutes(5), () => server.Shutdown());
-        server.AddInterceptor(idleTimeInterceptor);
+
+        //IdleTimeInterceptor idleTimeInterceptor = new(TimeSpan.FromMinutes(5), () => server.Shutdown());
+        //server.AddInterceptor(idleTimeInterceptor);
 
         TestService.BindService(server.ServiceBinder, impl);
 
         Console.WriteLine($"Server starting at :{pipeName}");
-        idleTimeInterceptor.Start();
+        //idleTimeInterceptor.Start();
         await server.RunAsync();
         Console.WriteLine($"Server shutdown at :{pipeName}");
     }

@@ -62,18 +62,15 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _combinedCts.Dispose();
         }
 
-        public Task? RequestHandlerTask { get; private set; }
+        public Task? RequestHandlerTask { get; private set; }//TODO: to remove
 
         public async ValueTask ListenMessagesAsync()
         {
             while (IsCompleted == false && _combinedCts.IsCancellationRequested == false && _pipeStream.IsConnected)
             {
                 Message message = await _transport.ReadFrame(_combinedCts.Token).ConfigureAwait(false);
-
-                if (ReferenceEquals(message, Message.Eof)) //gracefully end the task
-                {
+                if (message.IsEof) //gracefully end the task
                     break;
-                }
 
                 switch (message.DataCase)
                 {
@@ -156,7 +153,10 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 MessageInfo<TResponse> messageInfo = new(message, response, marshaller.ContextualSerializer);
                 await SendReplyStatus(messageInfo).ConfigureAwait(false);//not cancellable send
             }
-            await SendReplyStatus(message).ConfigureAwait(false);//not cancellable send
+            else
+            {
+                await SendReplyStatus(message).ConfigureAwait(false); //not cancellable send
+            }
         }
 
         public async ValueTask Error(Exception ex)//Should never throw
@@ -230,7 +230,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         private static void LogError(Message message, Exception? error)
         {
-            Console.WriteLine($"{nameof(ServerConnection)}:[Error] Send Status failed : [Code: {message.Response.StatusCode}] [detail: {message.Response.StatusDetail}] [Error: {error?.Message}]");
+            Console.WriteLine($"{nameof(ServerConnection)}:[Error] Send reply error At {DateTime.UtcNow:hh:mm:ss.fff tt} : [Code: {message.Response.StatusCode}] [detail: {message.Response.StatusDetail}] [Error: {error?.Message}]");
         }
 
 

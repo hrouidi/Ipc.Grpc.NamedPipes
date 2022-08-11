@@ -12,35 +12,35 @@ namespace Ipc.Grpc.NamedPipes.Tests;
 public class ServerListenerTests
 {
     [Test]
-    public void Start_Stop_Tests()
+    public async Task Start_Stop_Tests()
     {
         using var pool = new ServerListener($"{Guid.NewGuid()}", NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnection, ValueTask>>());
 
-        pool.Start();
-        pool.Stop();
-        pool.Stop();
+        await pool.StartAsync();
+        await pool.ShutdownAsync();
+        await pool.ShutdownAsync();
 
-        pool.Start();
-        pool.Start();
-        pool.Stop();
+        await pool.StartAsync();
+        await pool.StartAsync();
+        await pool.ShutdownAsync();
     }
 
     [Test]
-    public void Dispose_Tests()
+    public async Task Dispose_Tests()
     {
         var pool = new ServerListener($"{Guid.NewGuid()}", NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnection, ValueTask>>());
         pool.Dispose();
-        Assert.Throws<ObjectDisposedException>(() => pool.Start());
-        Assert.Throws<ObjectDisposedException>(() => pool.Stop());
+        Assert.ThrowsAsync<ObjectDisposedException>(pool.StartAsync);
+        Assert.ThrowsAsync<ObjectDisposedException>(pool.ShutdownAsync);
 
         var pool2 = new ServerListener($"{Guid.NewGuid()}", NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnection, ValueTask>>());
-        pool2.Start();
+        await pool2.StartAsync();
         pool2.Dispose();
-        Assert.Throws<ObjectDisposedException>(() => pool2.Start());
-        Assert.Throws<ObjectDisposedException>(() => pool2.Stop());
+        Assert.ThrowsAsync<ObjectDisposedException>(pool2.StartAsync);
+        Assert.ThrowsAsync<ObjectDisposedException>( pool2.ShutdownAsync);
 
         var pool3 = new ServerListener($"{Guid.NewGuid()}", NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnection, ValueTask>>());
-        pool3.Start();
+        await pool3.StartAsync();
         pool3.Dispose();
         pool3.Dispose();
         pool3.Dispose();
@@ -53,7 +53,7 @@ public class ServerListenerTests
         var pipeName = $"{Guid.NewGuid()}";
 
         using var pool = new ServerListener(pipeName, NamedPipeServerOptions.Default, new Dictionary<string, Func<ServerConnection, ValueTask>>());
-        pool.Start();
+        await pool.StartAsync();
         //await Task.Delay(10);
 
         List<Task> clients = new List<Task>(clientCount);

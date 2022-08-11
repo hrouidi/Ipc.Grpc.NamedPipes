@@ -9,7 +9,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using Ipc.Grpc.NamedPipes.Internal.Helpers;
-using Google.Protobuf;
 
 namespace Ipc.Grpc.NamedPipes.Internal.Transport
 {
@@ -24,7 +23,7 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
         public NamedPipeTransport(PipeStream pipeStream)
         {
             _pipeStream = pipeStream;
-            _remote = pipeStream is NamedPipeClientStream ? "Server" : "Client";
+            _remote = pipeStream is NamedPipeClientStream ? "Client" : "Server";
             _frameHeaderOwner = MemoryPool<byte>.Shared.Rent(FrameHeader.Size);
             _frameHeaderBytes = _frameHeaderOwner.Memory.Slice(0, FrameHeader.Size);
         }
@@ -33,7 +32,7 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
         {
             int readBytes = await _pipeStream.ReadAsync(_frameHeaderBytes, token)
                                              .ConfigureAwait(false);
-            if (readBytes == 0)
+            if (readBytes == 0) // Client close remote pipe
                 return Message.Eof;
 
             FrameHeader header = FrameHeader.FromSpan(_frameHeaderBytes.Span);
@@ -43,7 +42,7 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
 
             readBytes = await _pipeStream.ReadAsync(messageBytes, token)
                                          .ConfigureAwait(false);
-            if (readBytes == 0)
+            if (readBytes == 0)// Client close remote pipe
                 return Message.Eof;
 
             if (readBytes != header.TotalSize)

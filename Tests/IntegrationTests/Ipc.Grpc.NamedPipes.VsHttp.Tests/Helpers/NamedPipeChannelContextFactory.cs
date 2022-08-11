@@ -17,12 +17,12 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers
             var impl = new TestServiceImplementation();
             var server = new NamedPipeServer(_pipeName, options);
             TestService.BindService(server.ServiceBinder, impl);
-            server.Start();
+            server.StartAsync().GetAwaiter().GetResult();
             return new ChannelContext
             {
                 Impl = impl,
                 Client = CreateClient(),
-                OnDispose = () => server.Kill()
+                OnDispose = () => server.Dispose()
             };
         }
 

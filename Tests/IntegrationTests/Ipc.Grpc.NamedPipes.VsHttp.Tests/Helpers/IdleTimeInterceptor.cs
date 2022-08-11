@@ -11,9 +11,9 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
 public class IdleTimeInterceptor : Interceptor
 {
     private readonly Timer _timer;
-    private readonly Action _ileTimeAction;
+    private readonly Func<Task> _ileTimeAction;
 
-    public IdleTimeInterceptor(TimeSpan idleDuration, Action ileTimeAction)
+    public IdleTimeInterceptor(TimeSpan idleDuration, Func<Task> ileTimeAction)
     {
         _ileTimeAction = ileTimeAction;
         _timer = new Timer(idleDuration.TotalMilliseconds);
@@ -22,10 +22,10 @@ public class IdleTimeInterceptor : Interceptor
 
     public void Start() => _timer.Start();
 
-    private void OnTimerElapsed(object sender, ElapsedEventArgs e)
+    private async void OnTimerElapsed(object sender, ElapsedEventArgs e)
     {
-        _ileTimeAction?.Invoke();
         _timer.Elapsed -= OnTimerElapsed;
+        await _ileTimeAction.Invoke().ConfigureAwait(false);
     }
 
     private void Reset()

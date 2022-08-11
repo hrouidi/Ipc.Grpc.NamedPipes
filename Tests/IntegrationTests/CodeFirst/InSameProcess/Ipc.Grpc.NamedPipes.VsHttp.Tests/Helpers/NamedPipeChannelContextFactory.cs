@@ -19,12 +19,12 @@ namespace Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers
             var server = new NamedPipeServer(_pipeName, options);
             NativeMarshaller.Setup();
             server.ServiceBinder.AddCodeFirst(impl);
-            server.Start();
+            server.StartAsync();
             return new ChannelContext
             {
                 Impl = impl,
                 Client = CreateClient(),
-                OnDispose = () => server.Kill()
+                OnDispose = () => server.Dispose()
             };
         }
 

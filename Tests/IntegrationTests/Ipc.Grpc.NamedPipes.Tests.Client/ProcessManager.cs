@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Threading.Tasks;
 
 namespace Ipc.Grpc.NamedPipes.Tests.Client;
 
 public class RemoteProcessManager : IDisposable
 {
     private readonly Process _process;
-    public RemoteProcessManager(string exePath,string pipeName)
+
+    public RemoteProcessManager(string exePath, string pipeName, int processStartupDelayMs = 200)
     {
         _process = new Process()
         {
@@ -26,6 +28,7 @@ public class RemoteProcessManager : IDisposable
             throw new Exception("Can not start process");
         _process.BeginOutputReadLine();
         _process.BeginErrorReadLine();
+        Task.Delay(processStartupDelayMs);
     }
 
     public void Dispose()

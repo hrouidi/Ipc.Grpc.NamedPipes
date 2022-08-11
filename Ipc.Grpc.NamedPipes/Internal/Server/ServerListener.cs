@@ -16,10 +16,10 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly TaskCompletionSource<bool> _listenerReadyTask;
         private readonly IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> _methodHandlers;
 
-        private bool _isReady;
         private volatile bool _started;
         private volatile bool _disposed;
 
+        //TODO: to remove
         public Task ListeningTask { get; private set; }
 
         public ServerListener(string pipeName, NamedPipeServerOptions options, IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> methodHandlers)
@@ -30,21 +30,10 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _shutdownCancellationTokenSource = new CancellationTokenSource();
             _listenerReadyTask = new TaskCompletionSource<bool>();
 
-            _pipePool = new PipePool(CreatePipeServer);
+            _pipePool = new PipePool(CreatePipeServer, options.ConnectionPoolSize);
         }
 
-        public void Start() //Blocking start
-        {
-            CheckIfDisposed();
-            if (_started == false)
-            {
-                ListeningTask = Task.Factory.StartNew(() => ListenConnectionsAsync(), TaskCreationOptions.LongRunning);
-                _listenerReadyTask.Task.Wait();
-                _started = true;
-            }
-        }
-
-        public async ValueTask StartAsync(CancellationToken token = default)
+        public async Task StartAsync()
         {
             CheckIfDisposed();
             if (_started == false)
@@ -55,18 +44,13 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
         }
 
-        public void Stop() //Blocking stop
+        public async Task RunAsync()
         {
-            CheckIfDisposed();
-            if (_started)
-            {
-                _started = false;
-                _shutdownCancellationTokenSource.Cancel();
-                ListeningTask.Wait();
-            }
+            await StartAsync().ConfigureAwait(false);
+            await ListeningTask.ConfigureAwait(false);
         }
 
-        public async ValueTask StopAsync() //Blocking stop
+        public async Task ShutdownAsync()
         {
             CheckIfDisposed();
             if (_started)
@@ -133,11 +117,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 try
                 {
                     pipeServer = _pipePool.Get();
-                    if (_isReady == false)
-                    {
-                        _listenerReadyTask.TrySetResult(true);
-                        _isReady = true;
-                    }
+                    _listenerReadyTask.TrySetResult(true);
                     pipeServer.WaitForConnectionAsync(_shutdownCancellationTokenSource.Token)
                               .GetAwaiter()
                               .GetResult();
@@ -163,12 +143,15 @@ namespace Ipc.Grpc.NamedPipes.Internal
             {
                 await connection.ListenMessagesAsync().ConfigureAwait(false);
                 await connection.RequestHandlerTask!.ConfigureAwait(false);
-                _pipePool.Return(pipeServer);
+
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _pipePool.AddNew();
                 Console.WriteLine($"{nameof(ServerListener)} Error while ListenMessagesAsync: {ex.Message}");
+            }
+            finally
+            {
+                _pipePool.AddNew();
             }
         }
 

@@ -4,7 +4,7 @@ namespace Ipc.Grpc.NamedPipes
 {
     public sealed class NamedPipeServerOptions
     {
-        public static readonly NamedPipeServerOptions Default = new ();
+        public static readonly NamedPipeServerOptions Default = new();
 
 #if NETCOREAPP || NETSTANDARD2_1
         /// <summary>
@@ -20,5 +20,7 @@ namespace Ipc.Grpc.NamedPipes
         public PipeSecurity PipeSecurity { get; set; }
 #endif
         // TODO:  Add fault resilient strategies (retry,circuit breaker..)
+
+        public int ConnectionPoolSize { get; set; } = 1024;
     }
 }

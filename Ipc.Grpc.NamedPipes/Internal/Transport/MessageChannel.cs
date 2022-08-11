@@ -31,7 +31,6 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
         public MessageChannel(CancellationToken connectionCancellationToken)
         {
             _connectionCancellationToken = connectionCancellationToken;
-            //_channel = Channel.CreateUnbounded<ItemInfo>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
             _channel = Channel.CreateUnbounded<ItemInfo>();
         }
 
@@ -70,7 +69,6 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
         {
             return new AsyncStreamReaderImplementation<TPayload>(this, deadline, deserializer, connectionToken);
         }
-
 
         private async ValueTask<ItemInfo> SafeReadAsync(Deadline deadline, CancellationToken cancellationToken)
         {

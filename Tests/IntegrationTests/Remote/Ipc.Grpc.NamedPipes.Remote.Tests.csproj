@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>net461</TargetFrameworks>
+        <TargetFrameworks>net48</TargetFrameworks>
         <LangVersion>10</LangVersion>
     </PropertyGroup>
 
@@ -29,7 +29,6 @@
       <ProjectReference Include="..\..\..\Ipc.Grpc.NamedPipes\Ipc.Grpc.NamedPipes.csproj" />
       <ProjectReference Include="..\Ipc.Grpc.NamedPipes.Tests.Client\Ipc.Grpc.NamedPipes.Tests.Client.csproj" />
       <ProjectReference Include="..\Ipc.Grpc.NamedPipes.Tests.ProtoContract\Ipc.Grpc.NamedPipes.Tests.ProtoContract.csproj" />
-      <ProjectReference Include="..\Ipc.Grpc.NamedPipes.Tests.Server\Ipc.Grpc.NamedPipes.Tests.Server.csproj" />
     </ItemGroup>
 
 </Project>
