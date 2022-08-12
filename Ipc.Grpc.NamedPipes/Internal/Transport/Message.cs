@@ -4,7 +4,7 @@ using Grpc.Core;
 
 namespace Ipc.Grpc.NamedPipes.Internal.Transport
 {
-    public sealed partial class Message : IDisposable
+    internal sealed partial class Message : IDisposable
     {
         public static Message Eof = new();
 

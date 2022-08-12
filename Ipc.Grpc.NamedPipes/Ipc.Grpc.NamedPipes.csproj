@@ -4,11 +4,9 @@
 		<TargetFrameworks>net461;netcoreapp3.1;netstandard2.1;netstandard2.0;net5.0-windows</TargetFrameworks>
 		<LangVersion>10</LangVersion>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-
 		
-		
-		<Version>0.4.0</Version>
-		<PackageVersion>0.4.0</PackageVersion>
+		<Version>0.5.0</Version>
+		<PackageVersion>0.5.0</PackageVersion>
 		<AssemblyVersion>1.0.0.0</AssemblyVersion>
 		
 		<Authors>Houssam Rouidi</Authors>
@@ -40,12 +38,17 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Protobuf Include="**/*.proto" Access="Public" />
+		<Protobuf Include="**/*.proto" Access="Internal" />
 	</ItemGroup>
 
 	  
 	<ItemGroup>
 		<None Include="..\LICENSE.txt" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	  
+	<ItemGroup>
+	  <Protobuf Update="Internal\Transport\Message.proto" Access="Internal" />
 	</ItemGroup>
 
 </Project>
