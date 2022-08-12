@@ -72,7 +72,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                     _listenerReadyTask.TrySetResult(true);
                     connection.WaitForClientConnection();
                     //Console.WriteLine($"####  after connected thread id: {Thread.CurrentThread.ManagedThreadId}");
-                    _ = HandleConnectionAsync(connection);
+                    _ = Task.Run(() => AcceptClientConnectionAsync(connection), _shutdownCancellationTokenSource.Token);
                 }
                 catch (Exception ex)
                 {
@@ -84,11 +84,11 @@ namespace Ipc.Grpc.NamedPipes.Internal
             }
         }
 
-        private async Task HandleConnectionAsync(ServerConnection connection)//should never throw
+        private async Task AcceptClientConnectionAsync(ServerConnection connection)//should never throw
         {
             try
             {
-                await connection.ListenMessagesAsync().ConfigureAwait(false);
+                await connection.HandleClientMessagesAsync().ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

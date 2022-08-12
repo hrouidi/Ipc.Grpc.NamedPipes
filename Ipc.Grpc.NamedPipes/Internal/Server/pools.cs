@@ -122,7 +122,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             return CreateServerConnection();
         }
 
-        public void Return(ServerConnection? connection)
+        public void Return(ServerConnection? connection)// Try recycle this connection
         {
             connection?.Dispose();
             _connections.Enqueue(CreateServerConnection());

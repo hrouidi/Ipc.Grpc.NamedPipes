@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Jobs;
 using Google.Protobuf;
 using Ipc.Grpc.NamedPipes.ContractFirstTests.ProtoGenerated;
 using Ipc.Grpc.NamedPipes.VsHttp.Tests.Helpers;
@@ -9,6 +10,7 @@ using Perfolizer.Mathematics.OutlierDetection;
 namespace Ipc.Grpc.NamedPipes.VsBenchmarks
 {
     [Outliers(OutlierMode.DontRemove)]
+    [SimpleJob(RuntimeMoniker.Net48)]
     [MemoryDiagnoser]
     public class UnaryAsyncBenchmarks
     {

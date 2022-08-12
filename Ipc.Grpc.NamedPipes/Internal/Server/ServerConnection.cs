@@ -70,7 +70,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
             _pipeStream.WaitForConnectionAsync(_serverShutdownToken).GetAwaiter().GetResult();
         }
 
-        public async ValueTask ListenMessagesAsync()
+        public async ValueTask HandleClientMessagesAsync()
         {
             var requestHandlerTask = Task.CompletedTask;
             while (IsCompleted == false && _combinedCts.IsCancellationRequested == false && _pipeStream.IsConnected)
@@ -82,7 +82,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 switch (message.DataCase)
                 {
                     case Message.DataOneofCase.Request:
-                        requestHandlerTask = HandleRequestAsync(message);
+                        requestHandlerTask = Task.Run(() => HandleRequestAsync(message), _combinedCts.Token);
                         break;
                     case Message.DataOneofCase.Cancel:
                         HandleRemoteCancel();
@@ -244,7 +244,6 @@ namespace Ipc.Grpc.NamedPipes.Internal
 
         private async Task HandleRequestAsync(Message message)//Should never throw
         {
-            await Task.Yield();
             if (message.Request.MethodType is Request.Types.MethodType.Unary or Request.Types.MethodType.ServerStreaming)
                 _unaryRequestMessage = message;
 
