@@ -15,10 +15,11 @@ public class TransportTests
     public void FrameHeader_Tests()
     {
         Span<byte> bytes = stackalloc byte[8];
-        NamedPipeTransport.FrameHeader header1 = new(15, 8);
         NamedPipeTransport.FrameHeader.Write(bytes, 15, 8);
-        NamedPipeTransport.FrameHeader header2 = NamedPipeTransport.FrameHeader.FromSpan(bytes);
-        Assert.That(header1, Is.EqualTo(header2));
+        NamedPipeTransport.FrameHeader header2 = NamedPipeTransport.FrameHeader.Parse(bytes);
+        Assert.That(15, Is.EqualTo(header2.MessageSize));
+        Assert.That(8, Is.EqualTo(header2.PayloadSize));
+        Assert.That(23, Is.EqualTo(header2.TotalSize));
     }
 
 

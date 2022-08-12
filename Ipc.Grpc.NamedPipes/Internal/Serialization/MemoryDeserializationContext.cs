@@ -4,7 +4,6 @@ using Grpc.Core;
 
 namespace Ipc.Grpc.NamedPipes.Internal
 {
-
     internal class MemoryDeserializationContext : DeserializationContext
     {
         private readonly Memory<byte> _bytes;

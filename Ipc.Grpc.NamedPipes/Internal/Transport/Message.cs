@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Buffers;
-using System.Collections.Generic;
 using Grpc.Core;
 
 namespace Ipc.Grpc.NamedPipes.Internal.Transport
@@ -22,7 +21,7 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
 
         public TPayload GetPayload<TPayload>(Func<DeserializationContext, TPayload> deserializer)
         {
-            var deserializationContext = new MemoryDeserializationContext(_payloadBytes);
+            MemoryDeserializationContext deserializationContext = new(_payloadBytes);
             TPayload ret = deserializer(deserializationContext);
             return ret;
         }
@@ -31,7 +30,7 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
 
     }
 
-    internal readonly struct MessageInfo<TPayload> : IEquatable<MessageInfo<TPayload>> where TPayload : class
+    internal readonly record struct MessageInfo<TPayload> where TPayload : class
     {
         public Message Message { get; }
 
@@ -45,36 +44,5 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
             Payload = payload;
             PayloadSerializer = payloadSerializer;
         }
-
-        #region Equality semantic
-
-        public bool Equals(MessageInfo<TPayload> other)
-        {
-            return Message.Equals(other.Message) &&
-                   EqualityComparer<TPayload>.Default.Equals(Payload, other.Payload) &&
-                   PayloadSerializer.Equals(other.PayloadSerializer);
-        }
-
-        public override bool Equals(object? obj)
-        {
-            return obj is MessageInfo<TPayload> other && Equals(other);
-        }
-
-        public override int GetHashCode()
-        {
-            unchecked
-            {
-                int hashCode = Message.GetHashCode();
-                hashCode = (hashCode * 397) ^ EqualityComparer<TPayload>.Default.GetHashCode(Payload);
-                hashCode = (hashCode * 397) ^ PayloadSerializer.GetHashCode();
-                return hashCode;
-            }
-        }
-
-        public static bool operator ==(MessageInfo<TPayload> left, MessageInfo<TPayload> right) => left.Equals(right);
-
-        public static bool operator !=(MessageInfo<TPayload> left, MessageInfo<TPayload> right) => !left.Equals(right);
-
-        #endregion
     }
 }

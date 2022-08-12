@@ -35,7 +35,7 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
             if (readBytes == 0) // Client close remote pipe
                 return Message.Eof;
 
-            FrameHeader header = FrameHeader.FromSpan(_frameHeaderBytes.Span);
+            FrameHeader header = FrameHeader.Parse(_frameHeaderBytes.Span);
 
             IMemoryOwner<byte> owner = MemoryPool<byte>.Shared.Rent(header.TotalSize);
             Memory<byte> messageBytes = owner.Memory.Slice(0, header.TotalSize);
@@ -47,7 +47,7 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
 
             if (readBytes != header.TotalSize)
             {
-                Debug.Assert(readBytes == header.TotalSize, $"{_remote}  is laying: read bytes count:{readBytes}/{header.TotalSize}: buffer= {messageBytes.ToArray().Select(x => x.ToString()).Aggregate("", (x, y) => $"{x}|{y}")}");
+                Debug.Assert(readBytes == header.TotalSize, $"{_remote}  is corrupted: read bytes count:{readBytes}/{header.TotalSize}: buffer= {messageBytes.ToArray().Select(x => x.ToString()).Aggregate("", (x, y) => $"{x}|{y}")}");
             }
 
             Debug.Assert(_pipeStream.IsMessageComplete, "Unexpected message :too long!");
@@ -64,17 +64,12 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
             using MemorySerializationContext serializationContext = new(message.Message);
             message.PayloadSerializer(message.Payload, serializationContext);
 
-            Memory<byte> frameBytes = serializationContext.Bytes;
-
-            Memory<byte> headerBytes = frameBytes.Slice(0, FrameHeader.Size);
-            FrameHeader.Write(headerBytes.Span, serializationContext.MessageSize, serializationContext.PayloadSize);
-
-            await _pipeStream.WriteAsync(frameBytes, token).ConfigureAwait(false);
+            await _pipeStream.WriteAsync(serializationContext.FrameBytes, token).ConfigureAwait(false);
         }
 
         public async ValueTask SendFrame(Message message, CancellationToken token = default)
         {
-            var msgSize = message.CalculateSize();
+            int msgSize = message.CalculateSize();
 
             using var memoryOwner = MemoryPool<byte>.Shared.Rent(FrameHeader.Size + msgSize);
             Memory<byte> frameBytes = memoryOwner.Memory.Slice(0, FrameHeader.Size + msgSize);
@@ -94,15 +89,9 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
         }
 
         [StructLayout(LayoutKind.Sequential, Size = Size)]
-        internal readonly struct FrameHeader : IEquatable<FrameHeader>
+        internal readonly record struct FrameHeader //: IEquatable<FrameHeader>
         {
-            public const int Size = 2 * sizeof(int);
-
-            public FrameHeader(int messageSize, int payloadSize)
-            {
-                PayloadSize = payloadSize;
-                MessageSize = messageSize;
-            }
+            public const int Size = 2 * sizeof(int); //16 bytes
 
             public int MessageSize { get; }
 
@@ -110,7 +99,7 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
 
             public int TotalSize => MessageSize + PayloadSize;
 
-            public static FrameHeader FromSpan(ReadOnlySpan<byte> span)
+            public static FrameHeader Parse(ReadOnlySpan<byte> span)
             {
                 return MemoryMarshal.Read<FrameHeader>(span);
             }
@@ -120,26 +109,6 @@ namespace Ipc.Grpc.NamedPipes.Internal.Transport
                 long bytes = messageSize + ((long)payloadSize << 32);
                 MemoryMarshal.Write(destination, ref bytes);
             }
-
-            #region Equality 
-
-            public override int GetHashCode()
-            {
-                unchecked
-                {
-                    return (MessageSize * 397) ^ PayloadSize;
-                }
-            }
-
-            public bool Equals(FrameHeader other) => PayloadSize == other.PayloadSize && MessageSize == other.MessageSize;
-
-            public override bool Equals(object? obj) => obj is FrameHeader other && Equals(other);
-
-            public static bool operator ==(FrameHeader left, FrameHeader right) => left.Equals(right);
-
-            public static bool operator !=(FrameHeader left, FrameHeader right) => !left.Equals(right);
-
-            #endregion
 
             public override string ToString() => $"[{nameof(TotalSize)} = {TotalSize}],[{nameof(MessageSize)} ={MessageSize}],[{nameof(PayloadSize)} ={PayloadSize}]";
         }
