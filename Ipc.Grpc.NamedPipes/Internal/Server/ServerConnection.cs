@@ -16,6 +16,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
         private readonly IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> _methodHandlers;
         private readonly MessageChannel _requestStreamingChannel;
         private readonly NamedPipeServerStream _pipeStream;
+        private readonly IPool<NamedPipeServerStream> _pipePool;
         private readonly NamedPipeTransport _transport;
 
         private readonly CancellationToken _serverShutdownToken;
@@ -41,15 +42,16 @@ namespace Ipc.Grpc.NamedPipes.Internal
         public ServerCallContext CallContext { get; }
 
 
-        public ServerConnection(NamedPipeServerStream pipeStream, IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> methodHandlers, CancellationToken serverShutdownToken)
+        public ServerConnection(IPool<NamedPipeServerStream> pipePool, IReadOnlyDictionary<string, Func<ServerConnection, ValueTask>> methodHandlers, CancellationToken serverShutdownToken)
         {
-            _pipeStream = pipeStream;
+            _pipePool = pipePool;
+            _pipeStream = _pipePool.Rent();
             _methodHandlers = methodHandlers;
             _serverShutdownToken = serverShutdownToken;
 
             Deadline = Deadline.None;
             CallContext = new NamedPipeCallContext(this);
-            _transport = new NamedPipeTransport(pipeStream);
+            _transport = new NamedPipeTransport(_pipeStream);
             _callContextCts = new CancellationTokenSource();
             _remoteClientCts = new CancellationTokenSource();
             _combinedCts = CancellationTokenSource.CreateLinkedTokenSource(_serverShutdownToken, _callContextCts.Token, _remoteClientCts.Token);
@@ -60,12 +62,17 @@ namespace Ipc.Grpc.NamedPipes.Internal
         {
             _transport.Dispose();
             _combinedCts.Dispose();
+            _pipePool.Return(_pipeStream);
         }
 
-        public Task? RequestHandlerTask { get; private set; }//TODO: to remove
+        public void WaitForClientConnection()
+        {
+            _pipeStream.WaitForConnectionAsync(_serverShutdownToken).GetAwaiter().GetResult();
+        }
 
         public async ValueTask ListenMessagesAsync()
         {
+            var requestHandlerTask = Task.CompletedTask;
             while (IsCompleted == false && _combinedCts.IsCancellationRequested == false && _pipeStream.IsConnected)
             {
                 Message message = await _transport.ReadFrame(_combinedCts.Token).ConfigureAwait(false);
@@ -75,7 +82,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                 switch (message.DataCase)
                 {
                     case Message.DataOneofCase.Request:
-                        RequestHandlerTask = HandleRequestAsync(message);
+                        requestHandlerTask = HandleRequestAsync(message);
                         break;
                     case Message.DataOneofCase.Cancel:
                         HandleRemoteCancel();
@@ -96,8 +103,7 @@ namespace Ipc.Grpc.NamedPipes.Internal
                         break;
                 }
             }
-            //Early end 
-            RequestHandlerTask ??= Task.CompletedTask;
+            await requestHandlerTask.ConfigureAwait(false);
         }
 
         public async ValueTask SendResponseHeaders(Metadata responseHeaders)

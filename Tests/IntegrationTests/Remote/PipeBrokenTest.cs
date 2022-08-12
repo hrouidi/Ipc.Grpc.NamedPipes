@@ -44,7 +44,5 @@ namespace Ipc.Grpc.NamedPipes.Remote.Tests
                 Assert.That(responses[i].Value, Is.EqualTo(i));
             Console.WriteLine(stopwatch.ElapsedMilliseconds.ToString());
         }
-
-        
     }
 }

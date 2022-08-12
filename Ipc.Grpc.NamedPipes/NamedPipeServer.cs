@@ -19,7 +19,7 @@ namespace Ipc.Grpc.NamedPipes
         public NamedPipeServer(string pipeName, NamedPipeServerOptions options)
         {
             _binder = new NamedPipesServiceBinder();
-            _listener = new ServerListener(pipeName, options, _binder.MethodHandlers);
+            _listener = ServerListenerFactory.Create(pipeName, options, _binder.MethodHandlers);
         }
 
         public NamedPipeServer AddInterceptor(Interceptor interceptor)
@@ -32,13 +32,13 @@ namespace Ipc.Grpc.NamedPipes
         /// Start server listening and yield control to the caller
         /// </summary>
         public Task StartAsync() => _listener.StartAsync();
-        
+
         /// <summary>
         /// Start server listening loop , will yield when gracefully shutdown or dispose
         /// </summary>
         /// <returns></returns>
         public Task RunAsync() => _listener.RunAsync();
-        
+
         /// <summary>
         /// Gracefully shutdown the server, will wait for all pending connections to complete
         /// </summary>
